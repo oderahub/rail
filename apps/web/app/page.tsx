@@ -75,8 +75,8 @@ export default function Page() {
 
       <button onClick={login}>Continue</button>
       <p className="muted small" style={{ marginTop: 14 }}>
-        Somnia uses shared wallets, so if you already trade on dreamDEX you'll arrive with the
-        same address and the same balance.
+        Signing in creates a wallet for you. No seed phrase, no browser extension, nothing to
+        install.
       </p>
     </main>
   );

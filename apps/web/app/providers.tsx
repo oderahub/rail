@@ -20,6 +20,14 @@ export const somniaShannon = defineChain({
  */
 const SOMNIA_PROVIDER_APP_ID = "privy:cm8d9yzp2013kkr612h8ymoq8";
 
+/**
+ * Integrating another app's global wallet requires the Privy app to be in
+ * production, which is a paid tier. Off by default: without it users still get
+ * an embedded wallet, they just don't arrive with the dreamDEX address they
+ * already fund. Set NEXT_PUBLIC_SOMNIA_GLOBAL_WALLET=1 once the app is upgraded.
+ */
+const useGlobalWallet = process.env.NEXT_PUBLIC_SOMNIA_GLOBAL_WALLET === "1";
+
 export default function Providers({ children }: { children: React.ReactNode }) {
   const appId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
   if (!appId) {
@@ -38,7 +46,9 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     <PrivyProvider
       appId={appId}
       config={{
-        loginMethods: ["email", "google", SOMNIA_PROVIDER_APP_ID as any],
+        loginMethods: useGlobalWallet
+          ? (["email", "google", SOMNIA_PROVIDER_APP_ID] as any)
+          : ["email", "google"],
         appearance: { theme: "dark", accentColor: "#C2701A", logo: undefined },
         supportedChains: [somniaShannon],
         defaultChain: somniaShannon,
