@@ -12,66 +12,16 @@ export default function Page() {
   const { wallets } = useWallets();
   const [maxPerOrder, setMax] = useState("5");
   const [dailyCap, setDaily] = useState("50");
-  const [busy, setBusy] = useState(false);
-  const [vault, setVault] = useState<string | null>(null);
-  const [existed, setExisted] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
 
   const address = wallets[0]?.address ?? (user?.wallet?.address as string | undefined);
 
-  async function createVault() {
-    if (!address) return;
-    setBusy(true); setErr(null);
-    try {
-      const r = await fetch("/api/deploy", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ owner: address, maxPerOrder: Number(maxPerOrder), dailyCap: Number(dailyCap) }),
-      });
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.error ?? "failed");
-      setVault(d.vault); setExisted(Boolean(d.alreadyExisted));
-    } catch (e: any) {
-      setErr(e?.message ?? "something went wrong");
-    } finally {
-      setBusy(false);
-    }
-  }
+  // No API route, and no key on the host. The bot already deploys vaults and
+  // pays for them; this page just carries the user's address and chosen limits
+  // across in the deep-link payload. Telegram allows 64 chars of [A-Za-z0-9_-].
+  const payload = address ? `${address}-${maxPerOrder}-${dailyCap}` : "";
+  const deepLink = `https://t.me/${BOT}?start=${payload}`;
 
   if (!ready) return <main className="wrap"><p className="muted">…</p></main>;
-
-  // ── done ───────────────────────────────────────────────────────────────────
-  if (vault) {
-    return (
-      <main className="wrap">
-        <p className="eyebrow">Step 3 of 3</p>
-        <h1>Your vault is live</h1>
-        <p className="muted">
-          {existed ? "You already had one — here it is." : "Deployed, and we paid the gas. You own it."}
-        </p>
-
-        <div className="card">
-          <div className="row"><span className="k">Vault</span>
-            <a className="v" href={`${EXPLORER}/address/${vault}`} target="_blank" rel="noreferrer">{short(vault)}</a></div>
-          <div className="row"><span className="k">Owner</span><span className="v">{short(address!)}</span></div>
-          <div className="row"><span className="k">Most per trade</span><span className="v">{maxPerOrder} tUSDC</span></div>
-          <div className="row"><span className="k">Most per day</span><span className="v">{dailyCap} tUSDC</span></div>
-        </div>
-
-        <p className="muted small">
-          Only <span className="mono">{short(address!)}</span> can withdraw from it. The bot that trades
-          for you can place orders inside those limits and send funds back to you — nothing else.
-        </p>
-
-        <a href={`https://t.me/${BOT}?start=${vault}`}>
-          <button>Open the bot and start trading →</button>
-        </a>
-        <p className="muted small" style={{ marginTop: 14 }}>
-          In Telegram, send <span className="mono">/link {address}</span> and then <span className="mono">/fund</span>.
-        </p>
-      </main>
-    );
-  }
 
   // ── logged in ──────────────────────────────────────────────────────────────
   if (authenticated && address) {
@@ -92,14 +42,12 @@ export default function Page() {
           <input id="dc" inputMode="decimal" value={dailyCap} onChange={(e) => setDaily(e.target.value)} />
         </div>
 
-        {err && <p className="err small">{err}</p>}
-
-        <button onClick={createVault} disabled={busy}>
-          {busy ? "Creating your vault…" : "Create my vault"}
-        </button>
+        <a href={deepLink}>
+          <button>Create my vault in Telegram →</button>
+        </a>
         <p className="muted small" style={{ marginTop: 12 }}>
-          You won't be asked to sign or pay anything — we cover the deployment, and the vault
-          is yours regardless of who paid for it.
+          You won't be asked to sign or pay anything. We deploy the vault and cover the gas,
+          and it is yours regardless of who paid for it.
         </p>
         <button className="ghost" style={{ marginTop: 18 }} onClick={logout}>Use a different account</button>
       </main>

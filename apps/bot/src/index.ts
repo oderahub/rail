@@ -61,7 +61,58 @@ async function windowCard(asset: string, stake: bigint) {
 
 // ── commands ─────────────────────────────────────────────────────────────────
 
+const toRaw = (v: string, dflt: bigint): bigint => {
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? BigInt(Math.round(n * 1e6)) : dflt;
+};
+
+/**
+ * Deploy a vault the user owns and remember who they are.
+ * Shared by /link and by the signing page's deep-link payload — the page never
+ * deploys anything itself, which is why no key has to live on the web host.
+ */
+async function linkVault(c: Context, owner: `0x${string}`, policy: Policy) {
+  const tgId = String(c.from!.id);
+  const vault = await deployVault(owner, policy);
+
+  // watchUser hydrates history; prime AFTER it settles and register the user
+  // LAST, or the notifier pushes their entire past at them
+  await client.watchUser(vault).catch(() => {});
+  for (let i = 0; i < 10; i++) {
+    const n = (client.getLiveUserFills(null, vault, { limit: 500 }) ?? []).length;
+    await new Promise((r) => setTimeout(r, 300));
+    if ((client.getLiveUserFills(null, vault, { limit: 500 }) ?? []).length === n) break;
+  }
+  primeSeen((client.getLiveUserFills(null, vault, { limit: 500 }) ?? []).map((f: any) => String(f.id)), tgId);
+  putUser(tgId, owner, vault);
+
+  await c.reply(
+    "Vault ready.\n\n[" + short(vault) + "](" + addr(vault) + ") \u2014 owned by *you*, not by us.\n\n" +
+      "Limits: *" + fmt(policy.maxNotionalPerOrder, 2) + "* per order, *" + fmt(policy.dailyCap, 2) + "* a day.\n\n" +
+      "Now fund it: send tUSDC to the vault, or tap /fund for test tokens.",
+    { parse_mode: "Markdown", link_preview_options: { is_disabled: true } }
+  );
+}
+
 bot.command("start", async (c) => {
+  // the signing page sends 0xADDRESS-maxPerOrder-dailyCap
+  const payload = (c.match ?? "").trim();
+  const m = payload.match(/^(0x[a-fA-F0-9]{40})-([0-9.]+)-([0-9.]+)$/);
+  if (m && !getUser(String(c.from!.id))) {
+    await c.reply("Setting up your vault\u2026");
+    try {
+      await linkVault(c, m[1] as `0x${string}`, {
+        ...DEFAULT_POLICY,
+        maxNotionalPerOrder: toRaw(m[2], DEFAULT_POLICY.maxNotionalPerOrder),
+        dailyCap: toRaw(m[3], DEFAULT_POLICY.dailyCap),
+      });
+      const card = await windowCard("BTC", STAKES[0]);
+      return void c.reply(card.text, { parse_mode: "Markdown", reply_markup: card.kb });
+    } catch (e: any) {
+      return void c.reply("Could not set that up: " + (e?.shortMessage ?? e?.message));
+    }
+  }
+
   const u = getUser(String(c.from!.id));
   if (!u) {
     return c.reply(
@@ -83,28 +134,7 @@ bot.command("link", async (c) => {
 
   await c.reply("Deploying your vault…");
   try {
-    const vault = await deployVault(owner as `0x${string}`, DEFAULT_POLICY);
-
-    // Order matters. watchUser hydrates history, so priming before it primes
-    // nothing and the user gets their whole past pushed at them. Register the
-    // user LAST, so the notifier cannot see them mid-way through.
-    await client.watchUser(vault).catch(() => {});
-    for (let i = 0; i < 10; i++) {
-      const n = (client.getLiveUserFills(null, vault, { limit: 500 }) ?? []).length;
-      await new Promise((r) => setTimeout(r, 300));
-      if ((client.getLiveUserFills(null, vault, { limit: 500 }) ?? []).length === n) break;
-    }
-    primeSeen(
-      (client.getLiveUserFills(null, vault, { limit: 500 }) ?? []).map((f: any) => String(f.id)),
-      String(c.from!.id)
-    );
-    putUser(String(c.from!.id), owner, vault);
-    await c.reply(
-      `Vault ready.\n\n[${short(vault)}](${addr(vault)}) — owned by *you*, not by us.\n\n` +
-        `Limits: *${fmt(DEFAULT_POLICY.maxNotionalPerOrder, 2)}* per order, *${fmt(DEFAULT_POLICY.dailyCap, 2)}* a day.\n\n` +
-        `Now fund it: send tUSDC to the vault, or tap /fund for test tokens.`,
-      { parse_mode: "Markdown", link_preview_options: { is_disabled: true } }
-    );
+    await linkVault(c, owner as `0x${string}`, DEFAULT_POLICY);
   } catch (e: any) {
     await c.reply(`Could not deploy: ${e?.shortMessage ?? e?.message}`);
   }
