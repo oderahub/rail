@@ -1,0 +1,46 @@
+import "dotenv/config";
+import { SOMNIA_TESTNET_ADDRESSES } from "@somnia-chain/markets-sdk";
+
+const need = (k: string): string => {
+  const v = process.env[k];
+  if (!v) throw new Error(`Missing ${k} in .env — see .env.example`);
+  return v;
+};
+
+export const cfg = {
+  rpcUrl: need("RPC_URL"),
+  indexerUrl: need("INDEXER_URL"),
+  wsRpcUrl: need("WS_RPC_URL"),
+  chainId: Number(process.env.CHAIN_ID ?? 50312),
+
+  /** Shannon hosts more than one binary venue; scoping is mandatory, not optional. */
+  operatorId: Number(need("OPERATOR_ID")),
+  venueId: process.env.VENUE_ID as `0x${string}` | undefined,
+
+  collateral: SOMNIA_TESTNET_ADDRESSES.collateral as `0x${string}`,
+  binaryModule: SOMNIA_TESTNET_ADDRESSES.binaryModule as `0x${string}`,
+  outcomeToken: "0xB52c5934113Af5c0Bb20eb3C72290C8215f755b9" as `0x${string}`,
+
+  /** Read from the Market, never assumed. Testnet is 6; mainnet USDso is 18. */
+  decimals: Number(process.env.COLLATERAL_DECIMALS ?? 6),
+  tickSize: BigInt(process.env.BOOK_TICK_SIZE ?? 1000),
+  lotSize: BigInt(process.env.BOOK_LOT_SIZE ?? 1000),
+  minQuantity: BigInt(process.env.BOOK_MIN_QUANTITY ?? 1000),
+
+  factory: process.env.FACTORY_ADDRESS as `0x${string}` | undefined,
+
+  /** The bot's hot key. It may trade within policy and push funds home — nothing else. */
+  operatorKey: process.env.PRIVATE_KEY as `0x${string}`,
+
+  /**
+   * Whose vault we are acting on. In production this is the user's wallet and
+   * we never hold its key; in testing it is a second address so owner and
+   * operator stay genuinely separate. Falls back to the operator only if unset.
+   */
+  ownerAddress: process.env.OWNER_ADDRESS as `0x${string}` | undefined,
+  explorer: "https://shannon-explorer.somnia.network",
+} as const;
+
+export const scale = 10n ** BigInt(cfg.decimals);
+export const toHuman = (raw: bigint) => Number(raw) / Number(scale);
+export const fmt = (raw: bigint, dp = 3) => toHuman(raw).toFixed(dp);

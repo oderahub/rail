@@ -1,0 +1,27 @@
+{
+  "name": "rail",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "verify": "tsx scripts/verify.ts",
+    "inspect": "tsx scripts/inspect-sdk.ts",
+    "typecheck": "tsc --noEmit",
+    "loop": "tsx scripts/loop.ts",
+    "setup": "tsx scripts/setup.ts",
+    "prove": "tsx scripts/prove.ts",
+    "refuse": "tsx scripts/refuse.ts",
+    "bot": "tsx apps/bot/src/index.ts",
+    "delegation": "tsx scripts/delegation.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  },
+  "dependencies": {
+    "@somnia-chain/markets-sdk": "0.28.1",
+    "dotenv": "^16.4.7",
+    "grammy": "^1.46.0",
+    "viem": "^2.21.55"
+  }
+}

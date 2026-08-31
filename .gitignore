@@ -1,0 +1,17 @@
+# secrets — never
+.env
+.env.local
+*.key
+
+# deps & build
+node_modules/
+dist/
+contracts/out/
+contracts/cache/
+contracts/broadcast/
+
+# local state
+data/
+*.db
+*.log
+.DS_Store

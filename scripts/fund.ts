@@ -1,0 +1,17 @@
+import "dotenv/config";
+import { createWalletClient, createPublicClient, http, parseAbi, formatUnits } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
+import { somniaShannon } from "@somnia-chain/markets-sdk/chains";
+import { cfg } from "../packages/core/src/config.js";
+import { existingVault } from "../packages/core/src/vault.js";
+const bot = privateKeyToAccount(cfg.operatorKey);
+const t = http(cfg.rpcUrl);
+const pub = createPublicClient({ chain: somniaShannon as any, transport: t });
+const wal = createWalletClient({ account: bot, chain: somniaShannon as any, transport: t });
+const erc20 = parseAbi(["function transfer(address,uint256) returns (bool)","function balanceOf(address) view returns (uint256)"]);
+const v = (await existingVault(cfg.ownerAddress!))!;
+const h = await wal.writeContract({ address: cfg.collateral, abi: erc20, functionName: "transfer", args: [v, 100_000_000n], chain: somniaShannon as any, account: bot });
+await pub.waitForTransactionReceipt({ hash: h });
+const b = await pub.readContract({ address: cfg.collateral, abi: erc20, functionName: "balanceOf", args: [v] });
+console.log(`vault ${v} funded → ${formatUnits(b as bigint, 6)} tUSDC`);
+process.exit(0);
