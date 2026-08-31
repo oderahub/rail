@@ -11,7 +11,8 @@
     "prove": "tsx scripts/prove.ts",
     "refuse": "tsx scripts/refuse.ts",
     "bot": "tsx apps/bot/src/index.ts",
-    "delegation": "tsx scripts/delegation.ts"
+    "delegation": "tsx scripts/delegation.ts",
+    "web": "pnpm --filter @rail/web dev"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
