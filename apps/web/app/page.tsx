@@ -66,11 +66,11 @@ export default function Page() {
         cannot withdraw.
       </p>
 
-      <div className="card">
+      <div className="card steps">
         <h2>What happens next</h2>
-        <div className="row"><span className="k">1</span><span className="v" style={{ textAlign: "left" }}>Sign in — email or Google, no wallet app needed</span></div>
-        <div className="row"><span className="k">2</span><span className="v" style={{ textAlign: "left" }}>Choose your limits</span></div>
-        <div className="row"><span className="k">3</span><span className="v" style={{ textAlign: "left" }}>We deploy your vault and pay for it</span></div>
+        <div className="row"><span className="k">1</span><span className="v">Sign in — email or Google, no wallet app needed</span></div>
+        <div className="row"><span className="k">2</span><span className="v">Choose your limits</span></div>
+        <div className="row"><span className="k">3</span><span className="v">We deploy your vault and pay for it</span></div>
       </div>
 
       <button onClick={login}>Continue</button>
