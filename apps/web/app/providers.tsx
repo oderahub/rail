@@ -46,9 +46,14 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     <PrivyProvider
       appId={appId}
       config={{
-        loginMethods: useGlobalWallet
-          ? (["email", "google", SOMNIA_PROVIDER_APP_ID] as any)
-          : ["email", "google"],
+        // Only list methods actually enabled on the Privy app. A method listed
+        // here but disabled in the dashboard renders a button that silently
+        // does nothing — which is indistinguishable from a broken app.
+        loginMethods: [
+          "email",
+          ...(process.env.NEXT_PUBLIC_GOOGLE_LOGIN === "1" ? ["google"] : []),
+          ...(useGlobalWallet ? [SOMNIA_PROVIDER_APP_ID] : []),
+        ] as any,
         appearance: { theme: "dark", accentColor: "#C2701A", logo: undefined },
         supportedChains: [somniaShannon],
         defaultChain: somniaShannon,
