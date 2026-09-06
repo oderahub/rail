@@ -1,10 +1,12 @@
 # Rail
 
-**Set the rules your trades must obey. On-chain. Then tap.**
+**Delegate dreamDEX execution without giving away the keys.**
 
-Rail is a policy contract that owns your orders on [dreamDEX Event Contracts](https://docs.dreamdex.io/developers/event-contracts). You fund it once and set your limits. After that a bot can trade for you continuously and unattended — and it cannot exceed those limits, cannot send your money anywhere but back to you, and cannot withdraw. The rules are not in the bot's code. They are in the contract that holds the funds.
+dreamDEX has an operator-permission registry for `SpotPool`. `BinaryPool` has none — so on Event Contracts there is no way to let anything trade for you without handing it your private key.
 
-There is a Telegram client on top of it, because the point of removing custody is that someone can then tap a button without thinking about it.
+Rail is the missing boundary. A contract owns the orders and the collateral; an operator gets only bounded authority to act through it. The limits live in the contract that holds the funds, not in the code of whatever is doing the deciding.
+
+**The operator is replaceable.** Today it is a Telegram bot you tap. It could equally be a fair-value model, an LLM council, or a strategy you wrote yourself — Rail does not decide what the operator should do, only what it is permitted to do. Two projects in this hackathon compute a signal and then stop short of acting on it unattended, for exactly the reason Rail exists.
 
 Built for the Somnia × dreamDEX Event Contracts Hackathon, on Shannon testnet.
 
