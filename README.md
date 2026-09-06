@@ -6,7 +6,9 @@ dreamDEX has an operator-permission registry for `SpotPool`. `BinaryPool` has no
 
 Rail is the missing boundary. A contract owns the orders and the collateral; an operator gets only bounded authority to act through it. The limits live in the contract that holds the funds, not in the code of whatever is doing the deciding.
 
-**The operator is replaceable.** Today it is a Telegram bot you tap. It could equally be a fair-value model, an LLM council, or a strategy you wrote yourself — Rail does not decide what the operator should do, only what it is permitted to do. Two projects in this hackathon compute a signal and then stop short of acting on it unattended, for exactly the reason Rail exists.
+**The operator is replaceable.** Today it is a Telegram bot you tap. It could equally be a fair-value model, an LLM council, or a strategy you wrote yourself — Rail does not decide what the operator should do, only what it is permitted to do.
+
+Several projects in this hackathon describe a bounded policy. What follows is Rail's, refusing a trade on-chain, in a transaction you can open.
 
 Built for the Somnia × dreamDEX Event Contracts Hackathon, on Shannon testnet.
 
@@ -231,7 +233,7 @@ A strong field, and Rail is not competing with most of it.
 
 **[DreamDesk](https://dorahacks.io/buidl/48194)** builds an auditable trading desk with eight risk gates and a hash-chained ledger. Its gates are, in its own words, `pure TypeScript`, executed by a dedicated desk wallet — a plain EOA. Whoever holds that key can call `placeOrder` directly and every gate is irrelevant. Its roadmap leads with on-chain anchoring "without trusting our server", which is the same problem approached from the other side.
 
-Rail is the missing primitive underneath several of these, not a competitor to them. If it works, they all get better.
+Rail is not competing with most of this field, and it is not the only project reaching for a bounded policy — Perennis, KasuwaShield, PocketChange, Sluice and Let It Ride each approach it from a different angle. What distinguishes this one is not the idea but what can be opened: a filled order, a mined refusal, and a withdrawal the operator could not redirect. The claim is verifiable rather than asserted, and the four protocol findings in [`FEEDBACK.md`](./FEEDBACK.md) apply to anyone building the same shape.
 
 ---
 
