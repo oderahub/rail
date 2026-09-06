@@ -160,8 +160,11 @@ What is deployed, what is being built, and what was left out on purpose.
 - **Pushed fills**, from the SDK's chain-backed live layer
 - **Shared sweeper** — claims settled positions for every user and tells them, and tries `pokeOracle` / `syncSettlement` / `finalizeMarket` on markets stuck with a null outcome before giving up
 
-**In progress**
-- Privy signing page, so onboarding is email or Google rather than a pasted address. Somnia uses Privy **global wallets**, so a user who already trades on dreamDEX would arrive with the same address and their existing balance.
+**Live and verifiable** (continued)
+- **Signing page** at [rail's web app](https://web-rho-drab-21.vercel.app) — set your limits, get a Telegram deep link that carries them through. It deploys nothing itself and holds no key; the bot sponsors the deploy.
+
+**Future work**
+- **Email / social onboarding via Privy.** Somnia runs Privy *global wallets*, so a user who already trades on dreamDEX could arrive with the same address and balance rather than pasting one. The integration is written and sits behind `NEXT_PUBLIC_SOMNIA_GLOBAL_WALLET`, but consuming another app's global wallet requires the Privy app on a production tier. Not worth a subscription for a testnet demo.
 
 **Left out on purpose**
 - **No pooled treasury.** Every user deploys their own vault; a bug's blast radius is one person.

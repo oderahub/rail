@@ -1,63 +1,24 @@
 "use client";
 
 import { useState } from "react";
-import { usePrivy, useWallets } from "@privy-io/react-auth";
 
-const EXPLORER = "https://shannon-explorer.somnia.network";
 const BOT = process.env.NEXT_PUBLIC_BOT_USERNAME ?? "rail_somnia_bot";
-const short = (a: string) => `${a.slice(0, 10)}…${a.slice(-8)}`;
+const EXPLORER = "https://shannon-explorer.somnia.network";
+const isAddress = (a: string) => /^0x[a-fA-F0-9]{40}$/.test(a.trim());
 
 export default function Page() {
-  const { ready, authenticated, login, logout, user } = usePrivy();
-  const { wallets } = useWallets();
+  const [address, setAddress] = useState("");
   const [maxPerOrder, setMax] = useState("5");
   const [dailyCap, setDaily] = useState("50");
 
-  const address = wallets[0]?.address ?? (user?.wallet?.address as string | undefined);
+  const ok = isAddress(address);
+  // the bot deploys the vault and pays for it; this page only carries the
+  // address and limits across in the deep-link payload
+  const deepLink = `https://t.me/${BOT}?start=${address.trim()}-${maxPerOrder}-${dailyCap}`;
 
-  // No API route, and no key on the host. The bot already deploys vaults and
-  // pays for them; this page just carries the user's address and chosen limits
-  // across in the deep-link payload. Telegram allows 64 chars of [A-Za-z0-9_-].
-  const payload = address ? `${address}-${maxPerOrder}-${dailyCap}` : "";
-  const deepLink = `https://t.me/${BOT}?start=${payload}`;
-
-  if (!ready) return <main className="wrap"><p className="muted">…</p></main>;
-
-  // ── logged in ──────────────────────────────────────────────────────────────
-  if (authenticated && address) {
-    return (
-      <main className="wrap">
-        <p className="eyebrow">Step 2 of 3</p>
-        <h1>Set your limits</h1>
-        <p className="muted">
-          These go into the contract itself, not into the bot's code. Once they're set, nothing
-          the bot does can exceed them — the chain refuses the transaction.
-        </p>
-
-        <div className="card">
-          <div className="row"><span className="k">Your wallet</span><span className="v">{short(address)}</span></div>
-          <label htmlFor="mx">Most it can stake on one trade (tUSDC)</label>
-          <input id="mx" inputMode="decimal" value={maxPerOrder} onChange={(e) => setMax(e.target.value)} />
-          <label htmlFor="dc">Most it can stake in a day (tUSDC)</label>
-          <input id="dc" inputMode="decimal" value={dailyCap} onChange={(e) => setDaily(e.target.value)} />
-        </div>
-
-        <a href={deepLink}>
-          <button>Create my vault in Telegram →</button>
-        </a>
-        <p className="muted small" style={{ marginTop: 12 }}>
-          You won't be asked to sign or pay anything. We deploy the vault and cover the gas,
-          and it is yours regardless of who paid for it.
-        </p>
-        <button className="ghost" style={{ marginTop: 18 }} onClick={logout}>Use a different account</button>
-      </main>
-    );
-  }
-
-  // ── landing ────────────────────────────────────────────────────────────────
   return (
     <main className="wrap">
-      <p className="eyebrow">Step 1 of 3</p>
+      <p className="eyebrow">Somnia × dreamDEX</p>
       <h1>Rail</h1>
       <p>Set the rules your trades must obey. On-chain. Then tap.</p>
       <p className="muted">
@@ -66,18 +27,58 @@ export default function Page() {
         cannot withdraw.
       </p>
 
-      <div className="card steps">
-        <h2>What happens next</h2>
-        <div className="row"><span className="k">1</span><span className="v">Sign in — email or Google, no wallet app needed</span></div>
-        <div className="row"><span className="k">2</span><span className="v">Choose your limits</span></div>
-        <div className="row"><span className="k">3</span><span className="v">We deploy your vault and pay for it</span></div>
+      <div className="card">
+        <h2>Set your limits</h2>
+        <p className="muted small" style={{ marginTop: -4 }}>
+          These go into the contract itself, not the bot's code. Once set, nothing the bot does
+          can exceed them — the chain refuses the transaction.
+        </p>
+
+        <label htmlFor="addr">The wallet that will own your vault</label>
+        <input
+          id="addr"
+          placeholder="0x…"
+          value={address}
+          onChange={(e) => setAddress(e.target.value)}
+          spellCheck={false}
+        />
+        {address && !ok && <p className="err small" style={{ marginTop: 6 }}>That doesn't look like an address.</p>}
+
+        <label htmlFor="mx">Most it can stake on one trade (tUSDC)</label>
+        <input id="mx" inputMode="decimal" value={maxPerOrder} onChange={(e) => setMax(e.target.value)} />
+
+        <label htmlFor="dc">Most it can stake in a day (tUSDC)</label>
+        <input id="dc" inputMode="decimal" value={dailyCap} onChange={(e) => setDaily(e.target.value)} />
       </div>
 
-      <button onClick={login}>Continue</button>
+      {ok ? (
+        <a href={deepLink}>
+          <button>Create my vault in Telegram →</button>
+        </a>
+      ) : (
+        <button disabled>Create my vault in Telegram →</button>
+      )}
+
       <p className="muted small" style={{ marginTop: 14 }}>
-        Signing in creates a wallet for you. No seed phrase, no browser extension, nothing to
-        install.
+        You won't be asked to sign or pay anything. We deploy the vault and cover the gas, and
+        it is yours regardless of who paid for it — only the address above can ever withdraw.
       </p>
+
+      <div className="card" style={{ marginTop: 30 }}>
+        <h2>Already deployed</h2>
+        <div className="row">
+          <span className="k">Factory</span>
+          <a className="v" href={`${EXPLORER}/address/0x9dd560a1f2125d730766c9aff2b32e78057a0499`} target="_blank" rel="noreferrer">
+            0x9dd560a1…0499
+          </a>
+        </div>
+        <div className="row">
+          <span className="k">Source</span>
+          <a className="v" href="https://github.com/oderahub/rail" target="_blank" rel="noreferrer">
+            github.com/oderahub/rail
+          </a>
+        </div>
+      </div>
     </main>
   );
 }
