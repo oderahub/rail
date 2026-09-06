@@ -1,75 +1,100 @@
-# DreamDEX Event Contracts Integration Feedback & Technical Findings
+# dreamDEX Event Contracts — integration feedback
 
-This document summarizes four technical findings discovered while building **Rail** on Somnia testnet (Shannon) using `@somnia-chain/markets-sdk` `0.28.1`. Each finding is accompanied by a script in the repository that reproduces the exact on-chain behavior.
+Four findings from building **Rail** on Shannon against `@somnia-chain/markets-sdk` `0.28.1`. Each one is reproducible by a script in this repository, and each is stated at the confidence the evidence supports: where we observed behaviour but could not identify the cause, we say so rather than guess.
 
 ---
 
-## Finding 1: Delegated Binary Order Placement (`placeBinaryOrderFor`) is Unreachable
+## 1. Delegated binary order placement is unreachable
 
-### Summary
-The `BinaryPool` contract ABI includes `placeBinaryOrderFor(address owner, ...)`, which is intended to allow approved operators to place binary orders on behalf of an account. However, attempting to call this function from an approved operator address reverts with selector `0x3fb0ba2e` (`OnlyApprovedContracts`).
+`BinaryPool`'s ABI exposes `placeBinaryOrderFor(address owner, …)`, the binary counterpart to `SpotPool.placeOrderFor`. Calling it from any address other than the order owner reverts.
 
-### Root Cause
-The `OperatorPermissionsRegistry` provided by dreamDEX gates operator permissions for `SpotPool` (`placeOrderFor`), but no corresponding operator approval mechanism exists for `BinaryPool`. As a result, calling `placeBinaryOrderFor` from a non-owner address is unreachable under all conditions.
+**Why it cannot be reached.** `OperatorPermissionsRegistry` gates `placeOrderFor` and `cancelOrderFor` on **`SpotPool` only** — the SDK documents `SetOperatorApprovalForPoolParams.pool` as *"SpotPool the grant applies on"*, and the entire operator-grant module lives under `spot/`. There is no mechanism by which any caller can become authorised on a binary pool, so the delegated path exists in the ABI but is unreachable by anyone.
 
-### Impact
-Delegated binary trading is impossible for EOAs without handing over private keys. The only working architecture today is making a smart contract (e.g. `RailVault`) the order owner.
+**On the revert selector.** The call reverts with **`0x3fb0ba2e`**. We could not identify which error that is, and we want to be explicit about that rather than assume: the docs' errors page lists `OnlyApprovedContracts()` against this selector, but computing the selector from that signature gives `0xc16ffe21` (see finding 4). `0x3fb0ba2e` matches nothing across the SDK's 422-error catalogue, nothing in openchain, and nothing across those 422 names tried against 15 common parameter shapes. **The revert is reproducible; the error's identity is not something we can confirm.**
 
-### Reproduction
+**Impact.** A bot cannot trade for a user on Event Contracts without holding their key. The only architecture available today is the one the team recommends — making a contract the order owner — which is what Rail implements.
+
 ```bash
-npx tsc-node scripts/delegation.ts
+npx tsx scripts/delegation.ts
 ```
 
 ---
 
-## Finding 2: Smart Contract Order Owners Require Manual ERC-6909 Operator Approval to Redeem
+## 2. A contract order-owner cannot redeem without granting ERC-6909 approval itself
 
-### Summary
-When an EOA redeems winning outcome tokens on dreamDEX, the SDK or web frontend automatically grants `setOperator(binaryModule, true)` on the ERC-6909 outcome token contract. However, when a **smart contract** (like a vault) owns the position, calling `BinaryModule.redeem(...)` reverts because `binaryModule` is not approved to burn the vault's outcome tokens.
+This is the most consequential finding, because it makes the recommended architecture fail *after* a user has already traded.
 
-### Root Cause
-`BinaryModule` burns the user's ERC-6909 outcome tokens during redemption. ERC-6909 requires explicit operator authorization from the token holder (`isOperator(holder, spender) == true`). Nothing in the developer documentation specifies that contract order owners must grant this approval manually.
+Redeeming burns the holder's ERC-6909 outcome tokens, so `BinaryMarketsModule` must be an operator on them. Measured on Shannon:
 
-### Solution Implemented in Rail
-`RailVault` grants operator status to `BinaryModule` directly in its constructor (`IERC6909(outcomeToken).setOperator(_module, true)`).
+| holder | `isOperator(holder, binaryModule)` |
+|---|---|
+| an EOA that has traded and redeemed | `true` |
+| a freshly deployed contract vault | `false` |
 
-### Reproduction
+We did not trace how the EOA acquired that approval — plausibly the SDK grants it on first redeem — but the asymmetry is the point: **a contract owner does not get it, and nothing in the documentation says it must grant it.**
+
+**The failure mode is bad.** Orders place and fill correctly. Everything looks healthy. Then every `redeem` reverts with `0xdeda9030` — another selector in no public catalogue — and the winnings are stranded with no error a user or developer could act on. A builder following the "make a contract the order owner" guidance discovers this only after they have money in play.
+
+**Suggested doc change:** state, wherever contract-as-owner is recommended, that the owner must call `outcomeToken.setOperator(binaryModule, true)` before it can redeem.
+
+Rail does this in the vault constructor, as a typed call rather than a low-level one, so a vault that could not redeem fails at deploy rather than losing funds later.
+
 ```bash
-npx tsc-node scripts/erc6909.ts
+npx tsx scripts/erc6909.ts
 ```
 
 ---
 
-## Finding 3: Order Expiry Cannot Equal Market Window Expiry
+## 3. An order may not outlive its market — and this is undocumented
 
-### Summary
-Setting an order's `expireTimestampNs` to equal the exact remaining time of the market window (e.g., `w.secsLeft`) causes the transaction to revert on-chain with selector `0xd3dea628`.
+Setting `expireTimestampNs` to the window's own remaining time reverts with **`0xd3dea628`**, which appears in neither the errors page, the SDK's catalogue, nor openchain.
 
-### Root Cause
-The `BinaryPool` contract enforces that an order's expiration must fall strictly before the market window's settlement timestamp. Setting order expiry equal to market expiry causes a hidden validation failure ("order would outlive the market").
+Measured on a BTC 300s window with 262s remaining:
 
-### Solution Implemented in Rail
-`orderExpiryFor(w)` caps the order expiry at `w.secsLeft - 20` seconds to guarantee execution within valid window bounds.
+| order expiry | result |
+|---|---|
+| 242s — inside the window | ✅ fills |
+| 262s — exactly the remaining time | ❌ `0xd3dea628` |
+| 322s — past the window's expiry | ❌ `0xd3dea628` |
 
-### Reproduction
+**Why this matters more than a typical gotcha:** expiring the order when the window closes is the obvious thing to write. It is what we wrote, and it cost an evening to find, because the selector is undecodable from any public source.
+
+`OrderExpiryBeyondMarket()` exists in the SDK's catalogue and computes to `0xd7b0a759`, so either it is not that error or the deployed signature differs from the SDK's.
+
 ```bash
-npx tsc-node scripts/expiry.ts
+npx tsx scripts/expiry.ts
 ```
 
 ---
 
-## Finding 4: Error Selector Discrepancies Between Docs and Contracts
+## 4. Every selector on the errors documentation page disagrees with its own signature
 
-### Summary
-Several error selectors returned by `BinaryPool` and `BinaryModule` during reverts (such as `0x3fb0ba2e` and `0xd3dea628`) do not match the documented error selectors in the official developer docs or standard ABI catalog.
+`docs.dreamdex.io/developers/contracts/errors` lists a 4-byte selector beside each error. We could not match a single one. Computed with viem from the signature given on that same page:
 
-### Impact
-Off-chain applications and SDKs relying strictly on standard ABI decoding cannot decode these custom error selectors, presenting raw hex reverts to users.
+| error | docs page | computed |
+|---|---|---|
+| `OnlyApprovedContracts()` | `0x3fb0ba2e` | `0xc16ffe21` |
+| `ImmediateOrCancelNoFill()` | `0xd48c4403` | `0x8a7da60c` |
+| `IncorrectSender(address,address)` | `0xf5e39c1f` | `0x02170f37` |
+| `BuilderCodesNotSupported()` | `0x41ec099f` | `0x8cf342de` |
+| `PostOnlyWouldCross()` | `0x7cf05fcb` | `0xd99d38f4` |
+| `OrderAlreadyExpired()` | `0x3154078e` | `0xcb31835c` |
+| `InsufficientBalance(uint256,uint256)` | `0xcf479181` | `0xd145ef82` |
 
-### Solution Implemented in Rail
-Rail implements an empirical fallback selector lookup map (`EMPIRICAL_SELECTORS`) in `packages/core/src/vault.ts` to decode hex error selectors into user-friendly diagnostic messages.
+Decoding by **name** works correctly and agrees with the SDK; only the published selector column is wrong. The practical consequence is that anyone debugging a raw revert by looking up its selector in the docs will match the wrong error — or, as with findings 1 and 3, confidently name an error that isn't the one they hit.
 
-### Reproduction
 ```bash
-npx tsc-node scripts/selector.ts
+npx tsx scripts/selector.ts
 ```
+
+---
+
+## One request, not a bug
+
+**Builder fees are disabled on binary pools.** `getMaxBuilderFeeBpsTimes1k()` returns `0` on every Event Contract pool we checked (BTC and ETH at 300s and 900s), and the docs state that a zero cap disables builder codes entirely. The `builderFeeBpsTimes1k` parameter is present on `placeBinaryOrder`, but there is no revenue path behind it.
+
+This hackathon asks for consumer-facing front ends on Event Contracts. Spot has a complete builder-fee system — approvals, per-pool caps, vault accrual. Binary has the parameter and a zero cap, so a third-party client has no way to sustain itself. Raising that cap would make the applications this programme is asking for economically viable.
+
+---
+
+*Everything above is reproducible from this repository against Shannon. Where we could not establish a cause, we have said so rather than fill the gap with a plausible guess — the selector attributions in findings 1 and 3 are exactly the kind of claim that is easy to get wrong and hard to notice.*
