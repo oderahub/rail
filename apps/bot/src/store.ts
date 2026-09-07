@@ -1,8 +1,11 @@
 import { DatabaseSync } from "node:sqlite";
 import { mkdirSync } from "node:fs";
 
-mkdirSync("data", { recursive: true });
-const db = new DatabaseSync("data/rail.db");
+// Railway (or any host with a mounted volume) sets DATA_DIR; locally it is ./data.
+// A serverless host has no durable filesystem — this bot needs a real process.
+const dir = process.env.DATA_DIR ?? "data";
+mkdirSync(dir, { recursive: true });
+const db = new DatabaseSync(`${dir}/rail.db`);
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
