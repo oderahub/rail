@@ -1,10 +1,12 @@
 # Rail
 
-**Delegate dreamDEX execution without giving away the keys.**
+**Whatever you build on top of dreamDEX, you shouldn't have to give it the keys.**
 
 dreamDEX has an operator-permission registry for `SpotPool`. `BinaryPool` has none — so on Event Contracts there is no way to let anything trade for you without handing it your private key.
 
 Rail is the missing boundary. A contract owns the orders and the collateral; an operator gets only bounded authority to act through it. The limits live in the contract that holds the funds, not in the code of whatever is doing the deciding.
+
+**Rail is the authorization layer, not the strategy layer.** It does not decide what should happen next — it decides whether whoever is trying to make it happen is allowed to. The application making the decision is not the application holding the authority.
 
 **The operator is replaceable.** Today it is a Telegram bot you tap. It could equally be a fair-value model, an LLM council, or a strategy you wrote yourself — Rail does not decide what the operator should do, only what it is permitted to do.
 
