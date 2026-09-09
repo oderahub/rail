@@ -1,0 +1,42 @@
+services:
+  - type: worker
+    name: rail-bot
+    runtime: node
+    plan: starter          # a free web service sleeps after 15m, which kills
+                           # pushed fills and the sweeper; a worker stays up
+    buildCommand: npm install -g pnpm && pnpm install --no-frozen-lockfile
+    startCommand: npx tsx apps/bot/src/index.ts
+    disk:
+      name: rail-data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: DATA_DIR
+        value: /data
+      - key: RPC_URL
+        value: https://dream-rpc.somnia.network
+      - key: INDEXER_URL
+        value: https://dev.smk.somnia.host/v1/graphql
+      - key: WS_RPC_URL
+        value: wss://api.infra.testnet.somnia.network/ws
+      - key: CHAIN_ID
+        value: "50312"
+      - key: OPERATOR_ID
+        value: "2"
+      - key: COLLATERAL_DECIMALS
+        value: "6"
+      - key: BOOK_TICK_SIZE
+        value: "1000"
+      - key: BOOK_LOT_SIZE
+        value: "1000"
+      - key: BOOK_MIN_QUANTITY
+        value: "1000"
+      # set these in the dashboard, never in this file
+      - key: PRIVATE_KEY
+        sync: false
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: VENUE_ID
+        sync: false
+      - key: FACTORY_ADDRESS
+        sync: false

@@ -38,3 +38,17 @@ Without the volume the bot still runs, but a redeploy makes it forget who is lin
 ### Running it locally is fine
 
 For the demo video, `npm run bot` on your machine is enough. Hosting only matters so a judge can try it themselves.
+
+## If your network blocks Telegram
+
+`api.telegram.org` is restricted on some ISPs — DNS resolves but the connection is dropped:
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' https://api.telegram.org   # 000 = blocked
+```
+
+The bot cannot run locally in that case. A hosted process is unaffected, which is another reason to deploy rather than run it from a laptop.
+
+## Note on logs
+
+grammY includes the full API URL in network errors, and that URL contains the bot token. Any crash log — including a hosting dashboard's log view — can therefore leak it. Treat bot logs as secret, and rotate the token with BotFather's `/revoke` if one is ever shared.
