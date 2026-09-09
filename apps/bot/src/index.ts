@@ -5,7 +5,7 @@ import {
   cfg, fmt, scale, exchange, liveWindows, pickWindow, isTradable, book,
   crossingPrice, quantityForSpend, notional, orderExpiryFor, SubLotError, NoLiquidityError,
   deployVault, faucetInto, existingVault, vaultState, placeOrder, withdrawAll,
-  claimableFor, sweep, outcomeBalance, type Policy,
+  claimableFor, sweep, outcomeBalance, pub, operator, type Policy,
 } from "../../../packages/core/src/index.js";
 import { getUser, putUser, allUsers, isNewFill, primeSeen } from "./store.js";
 import { startSweeper } from "./sweeper.js";
@@ -336,6 +336,29 @@ async function startLive() {
 
 bot.catch((e) => console.error("bot error:", e));
 
+// ── boot ─────────────────────────────────────────────────────────────────────
+
+/**
+ * Everything here is best-effort. A hosted bot that answers /start with stale
+ * market data is worth far more than one that refuses to boot because the
+ * indexer blinked, so nothing below is allowed to abort startup.
+ */
+async function preflight() {
+  console.log(`operator: ${operator.address}`);
+  if (!cfg.factory) console.error("FATAL-ish: FACTORY_ADDRESS unset — /link will fail for everyone");
+  if (!cfg.venueId) console.error("warning: VENUE_ID unset — market lookups may pick the wrong venue");
+  try {
+    const gas = await pub.getBalance({ address: operator.address });
+    const stt = Number(gas) / 1e18;
+    console.log(`gas: ${stt.toFixed(3)} STT`);
+    if (stt < 0.5) console.error(`LOW GAS: ${stt.toFixed(3)} STT — deploys and orders will start failing`);
+  } catch (e: any) {
+    console.error("could not read gas balance:", e?.shortMessage ?? e?.message);
+  }
+}
+
+await preflight();
+
 await bot.api.setMyCommands([
   { command: "start", description: "Begin" },
   { command: "btc", description: "Trade the BTC window" },
@@ -344,9 +367,21 @@ await bot.api.setMyCommands([
   { command: "limits", description: "Your on-chain limits" },
   { command: "claim", description: "Collect settled winnings" },
   { command: "withdraw", description: "Send funds to your wallet" },
-]);
+]).catch((e) => console.error("setMyCommands failed (continuing):", e?.message));
 
-await startLive();
+await startLive().catch((e) => {
+  console.error("live layer failed to start (continuing without pushed fills):", e?.message);
+});
 startSweeper(bot);
+
+// A redeploy that does not stop the old long-poll session leaves two instances
+// on one token, and Telegram 409s the newcomer. Stop cleanly on both signals.
+for (const sig of ["SIGINT", "SIGTERM"] as const) {
+  process.once(sig, () => {
+    console.log(`${sig} — stopping`);
+    void bot.stop();
+  });
+}
+
 console.log("Rail bot up.");
 bot.start();

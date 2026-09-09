@@ -1,8 +1,15 @@
 {
   "$schema": "https://railway.app/railway.schema.json",
-  "build": { "builder": "NIXPACKS" },
+  "build": {
+    "builder": "NIXPACKS",
+    "nixpacksPlan": {
+      "providers": [
+        "node"
+      ]
+    }
+  },
   "deploy": {
-    "startCommand": "npx tsx apps/bot/src/index.ts",
+    "startCommand": "pnpm start",
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10
   }

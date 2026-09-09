@@ -10,16 +10,54 @@ import { protocolErrorsAbi } from "./protocolErrors.js";
 import { cfg, fmt } from "./config.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const artifact = (n: string) =>
-  JSON.parse(readFileSync(resolve(here, `../../../contracts/out/${n}.sol/${n}.json`), "utf8"));
 
-export const vaultAbi = artifact("RailVault").abi;
-export const factoryAbi = artifact("RailFactory").abi;
+/**
+ * ABIs are committed under packages/core/abi, NOT read from contracts/out.
+ * A deploy host has no Foundry, and contracts/out is gitignored — reading it
+ * at import time made the bot unbootable anywhere but this laptop.
+ * Regenerate after any contract change: `pnpm abi`.
+ */
+const artifact = (n: string) =>
+  JSON.parse(readFileSync(resolve(here, `../abi/${n}.json`), "utf8"));
+
+export const vaultAbi = artifact("RailVault");
+export const factoryAbi = artifact("RailFactory");
 
 const transport = http(cfg.rpcUrl);
 export const pub = createPublicClient({ chain: somniaShannon as any, transport });
 export const operator = privateKeyToAccount(cfg.operatorKey);
 export const wallet = createWalletClient({ account: operator, chain: somniaShannon as any, transport });
+
+/**
+ * One hot key serves every user. Two people tapping in the same second would
+ * otherwise both read the same pending nonce and the second transaction would
+ * be dropped by the node — invisibly, as a "failed order" the user cannot
+ * explain. Broadcasts are therefore serialised behind a promise chain with a
+ * locally tracked nonce.
+ *
+ * Only the broadcast is inside the lock: receipts are awaited by the caller
+ * afterwards, so confirmations still overlap and throughput stays fine.
+ */
+let sendQueue: Promise<unknown> = Promise.resolve();
+let nextNonce: number | null = null;
+
+export function write(args: any): Promise<`0x${string}`> {
+  const run = sendQueue.then(async () => {
+    if (nextNonce === null) {
+      nextNonce = await pub.getTransactionCount({ address: operator.address, blockTag: "pending" });
+    }
+    try {
+      const hash = await wallet.writeContract({ ...args, nonce: nextNonce });
+      nextNonce++;
+      return hash;
+    } catch (e) {
+      nextNonce = null; // lost track — resync against the chain next time
+      throw e;
+    }
+  });
+  sendQueue = run.then(() => {}, () => {});
+  return run as Promise<`0x${string}`>;
+}
 
 const erc20 = parseAbi([
   "function balanceOf(address) view returns (uint256)",
@@ -63,7 +101,7 @@ export async function deployVault(owner: Address, policy: Policy): Promise<Addre
     account: operator, address: cfg.factory, abi: factoryAbi,
     functionName: "deployFor", args: [owner, policyTuple(policy)],
   });
-  const hash = await wallet.writeContract(sim.request as any);
+  const hash = await write(sim.request as any);
   await pub.waitForTransactionReceipt({ hash });
   return (await existingVault(owner))!;
 }
@@ -75,13 +113,13 @@ export async function faucetInto(vault: Address, amount = 100_000_000n): Promise
     address: cfg.collateral, abi: erc20, functionName: "balanceOf", args: [operator.address],
   })) as bigint;
   if (have < amount) {
-    const h = await wallet.writeContract({
+    const h = await write({
       address: cfg.collateral, abi: faucetAbi, functionName: "faucet",
       args: [10_000_000_000n], chain: null, account: operator,
     } as any);
     await pub.waitForTransactionReceipt({ hash: h });
   }
-  const hash = await wallet.writeContract({
+  const hash = await write({
     address: cfg.collateral, abi: erc20, functionName: "transfer",
     args: [vault, amount], chain: null, account: operator,
   } as any);
@@ -259,7 +297,7 @@ export async function placeOrderOnChain(vault: Address, o: OrderIntent): Promise
   }];
   let txHash: `0x${string}` | undefined;
   try {
-    txHash = await wallet.writeContract({
+    txHash = await write({
       address: vault, abi: vaultAbi, functionName: "placeOrder", args,
       gas: 3_000_000n, chain: null, account: operator,
     } as any);
@@ -290,7 +328,7 @@ export async function placeOrder(vault: Address, o: OrderIntent): Promise<PlaceR
     const sim = await pub.simulateContract({
       account: operator, address: vault, abi: vaultAbi, functionName: "placeOrder", args,
     });
-    const txHash = await wallet.writeContract(sim.request as any);
+    const txHash = await write(sim.request as any);
     await pub.waitForTransactionReceipt({ hash: txHash });
     const after = (await pub.readContract({
       address: cfg.collateral, abi: erc20, functionName: "balanceOf", args: [vault],
@@ -304,7 +342,7 @@ export async function placeOrder(vault: Address, o: OrderIntent): Promise<PlaceR
 
 const send = async (vault: Address, fn: string, args: any[] = []) => {
   const sim = await pub.simulateContract({ account: operator, address: vault, abi: vaultAbi, functionName: fn, args });
-  const hash = await wallet.writeContract(sim.request as any);
+  const hash = await write(sim.request as any);
   await pub.waitForTransactionReceipt({ hash });
   return hash;
 };

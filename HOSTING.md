@@ -1,54 +1,64 @@
-# Hosting
+# Hosting Rail
 
-Two pieces, two hosts, for a reason.
+The bot is a long-lived process, not a serverless function. It holds a websocket
+subscription for pushed fills and runs a 60s sweeper that claims settled
+positions on users' behalf. A platform that sleeps idle instances (Render's free
+web tier, Vercel functions) will silently stop both. Deploy it as a **worker**.
 
-## The signing page → Vercel
+## What must be true
 
-Static and serverless. Already live. `apps/web` holds no key and calls nothing that costs money — the deep link hands off to the bot, which does the deploying.
-
-## The bot → not Vercel
-
-`apps/bot` needs a process that stays alive:
-
-| what it does | why serverless breaks it |
+| requirement | why |
 |---|---|
-| `bot.start()` long-polls Telegram | no persistent process |
-| `subscribeLive` watches the chain for fills | subscription dies with the function |
-| sweeper runs every 60s | Vercel Cron is once/day on Hobby |
-| SQLite at `data/rail.db` | ephemeral filesystem |
+| Node **≥ 22.13** | `node:sqlite` does not exist on older runtimes |
+| a **persistent volume** at `DATA_DIR` | the SQLite file maps Telegram users to vaults; losing it orphans everyone's vault and re-notifies their whole fill history |
+| exactly **one** running instance | two processes long-polling one token makes Telegram 409 the newcomer |
+| gas in the operator wallet | it pays for every vault deploy, order, claim and withdrawal |
 
-Forcing it onto Vercel means losing pushed fills and automatic claiming — the two things that make the product feel alive. dreamDEX's own Bot Builder recommends Railway for the same reason.
+Contract ABIs are committed under `packages/core/abi/`. They are **not** read
+from `contracts/out/`, which is gitignored and absent on every host. After
+changing a contract, run `pnpm abi` and commit the result.
 
-### Railway, in about five minutes
-
-```bash
-npm i -g @railway/cli
-railway login
-railway init
-railway up
-```
-
-Then in the Railway dashboard:
-
-1. **Variables** — paste the same keys as `.env`: `PRIVATE_KEY`, `TELEGRAM_BOT_TOKEN`, `RPC_URL`, `INDEXER_URL`, `WS_RPC_URL`, `OPERATOR_ID`, `VENUE_ID`, `FACTORY_ADDRESS`, `COLLATERAL_DECIMALS`, `BOOK_TICK_SIZE`, `BOOK_LOT_SIZE`, `BOOK_MIN_QUANTITY`
-2. **Volume** — mount one at `/data`, then set `DATA_DIR=/data` so the user↔vault mapping and notification history survive restarts
-
-Without the volume the bot still runs, but a redeploy makes it forget who is linked and re-push old fills.
-
-### Running it locally is fine
-
-For the demo video, `npm run bot` on your machine is enough. Hosting only matters so a judge can try it themselves.
-
-## If your network blocks Telegram
-
-`api.telegram.org` is restricted on some ISPs — DNS resolves but the connection is dropped:
+## Railway (recommended)
 
 ```bash
-curl -s -o /dev/null -w '%{http_code}\n' https://api.telegram.org   # 000 = blocked
+npm i -g @railway/cli && railway login && railway init && railway up
 ```
 
-The bot cannot run locally in that case. A hosted process is unaffected, which is another reason to deploy rather than run it from a laptop.
+Then in the dashboard:
 
-## Note on logs
+1. **Variables** — set `PRIVATE_KEY`, `TELEGRAM_BOT_TOKEN`, `VENUE_ID`,
+   `FACTORY_ADDRESS`, plus the pinned values from `.env.example`.
+2. **Volume** — mount one and set `DATA_DIR` to its path.
+3. Confirm the deploy log shows `operator: 0x…`, a gas figure, and `Rail bot up.`
 
-grammY includes the full API URL in network errors, and that URL contains the bot token. Any crash log — including a hosting dashboard's log view — can therefore leak it. Treat bot logs as secret, and rotate the token with BotFather's `/revoke` if one is ever shared.
+## Render
+
+`render.yaml` declares the worker, a 1GB disk at `/data`, and the non-secret
+config. Secrets are marked `sync: false` — set them in the dashboard, never in
+the file.
+
+## Reading the boot log
+
+```
+operator: 0x4258…1F34      the hot key; fund this address with STT
+gas: 39.298 STT            below 0.5 and it starts refusing work
+live: watching 8 markets, 3 vaults
+sweeper: every 60s
+Rail bot up.
+```
+
+Startup is deliberately fault-tolerant: if the indexer is unreachable, the live
+layer logs and is skipped rather than aborting boot. A bot that answers with
+stale prices beats one that will not start.
+
+## Two hazards worth knowing
+
+**grammY prints the bot token on network errors.** The API URL *is* the
+credential (`api.telegram.org/bot<token>/METHOD`), so any logged request URL
+leaks it. Don't paste raw crash output into a shared channel; rotate via
+BotFather `/revoke` if you do.
+
+**Some ISPs block `api.telegram.org` outright.** If `curl -s -o /dev/null -w
+'%{http_code}' https://api.telegram.org` returns `000` while `t.me` and the
+Somnia RPC both answer, the network is the problem, not the bot. Hosting sidesteps
+it entirely.

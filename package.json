@@ -12,17 +12,22 @@
     "refuse": "tsx scripts/refuse.ts",
     "bot": "tsx apps/bot/src/index.ts",
     "delegation": "tsx scripts/delegation.ts",
-    "web": "pnpm --filter @rail/web dev"
+    "web": "pnpm --filter @rail/web dev",
+    "abi": "node -e \"const fs=require('fs');for(const n of ['RailVault','RailFactory'])fs.writeFileSync('packages/core/abi/'+n+'.json',JSON.stringify(JSON.parse(fs.readFileSync('contracts/out/'+n+'.sol/'+n+'.json','utf8')).abi,null,2))\"",
+    "start": "tsx apps/bot/src/index.ts"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
-    "tsx": "^4.19.2",
     "typescript": "^5.7.2"
   },
   "dependencies": {
     "@somnia-chain/markets-sdk": "0.28.1",
     "dotenv": "^16.4.7",
     "grammy": "^1.46.0",
-    "viem": "^2.21.55"
+    "viem": "^2.21.55",
+    "tsx": "^4.19.2"
+  },
+  "engines": {
+    "node": ">=22.13"
   }
 }

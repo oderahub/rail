@@ -63,6 +63,10 @@ export default function Page() {
         You won't be asked to sign or pay anything. We deploy the vault and cover the gas, and
         it is yours regardless of who paid for it — only the address above can ever withdraw.
       </p>
+      <p className="muted small" style={{ marginTop: 10 }}>
+        No testnet funds needed: any address works, and <code>/fund</code> mints test tUSDC
+        straight into your vault. Shannon testnet — nothing here touches real money.
+      </p>
 
       <div className="card" style={{ marginTop: 30 }}>
         <h2>Already deployed</h2>

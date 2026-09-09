@@ -5,12 +5,15 @@ services:
     plan: starter          # a free web service sleeps after 15m, which kills
                            # pushed fills and the sweeper; a worker stays up
     buildCommand: npm install -g pnpm && pnpm install --no-frozen-lockfile
-    startCommand: npx tsx apps/bot/src/index.ts
+    startCommand: pnpm start
     disk:
       name: rail-data
       mountPath: /data
       sizeGB: 1
     envVars:
+      # node:sqlite needs 22.13+; an older default silently has no such module
+      - key: NODE_VERSION
+        value: 22.13.0
       - key: DATA_DIR
         value: /data
       - key: RPC_URL

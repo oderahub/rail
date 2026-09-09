@@ -1,7 +1,7 @@
 import { parseAbi, type Address } from "viem";
 import { cfg } from "./config.js";
 import { exchange } from "./markets.js";
-import { pub, wallet, operator, redeemInto } from "./vault.js";
+import { pub, write, operator, redeemInto } from "./vault.js";
 
 const client = (): any => (exchange() as any).client;
 
@@ -96,7 +96,7 @@ export async function unstick(marketId: `0x${string}`, oracleQuestionId?: bigint
   const attempt = async (fn: "pokeOracle" | "syncSettlement" | "finalizeMarket", args: readonly [any]) => {
     try {
       const sim = await pub.simulateContract({ account: operator, address: cfg.binaryModule, abi: moduleAbi, functionName: fn, args });
-      const hash = await wallet.writeContract(sim.request as any);
+      const hash = await write(sim.request as any);
       await pub.waitForTransactionReceipt({ hash });
       tried.push({ fn, ok: true });
     } catch (e: any) {
