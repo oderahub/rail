@@ -62,14 +62,37 @@ export async function liveWindows(): Promise<Window[]> {
     .sort((a: Window, b: Window) => a.intervalSec - b.intervalSec);
 }
 
+/** Every interval the venue is currently running for an asset, shortest first. */
+export async function intervalsFor(asset: string, minSecsLeft = 75): Promise<number[]> {
+  const ws = await liveWindows();
+  return [...new Set(ws.filter((w) => w.asset === asset && w.secsLeft >= minSecsLeft).map((w) => w.intervalSec))]
+    .sort((a, b) => a - b);
+}
+
 /**
- * Pick the window a tap should land on: shortest interval with enough runway.
+ * Pick the window a tap should land on.
+ *
  * `minSecsLeft` exists because a market can lock between reading and sending —
  * the order then expires silently and the status flips mid-flight.
+ *
+ * `intervalSec` picks a specific timeframe. Without it this returns the
+ * shortest window with runway, which is what an unqualified /btc means. The
+ * venue runs 5m, 15m, 1h, 4h and 1d concurrently; a caller that ignores the
+ * parameter silently confines every user to the 5-minute book.
  */
-export async function pickWindow(asset: string, minSecsLeft = 75): Promise<Window | null> {
+export async function pickWindow(
+  asset: string,
+  minSecsLeft = 75,
+  intervalSec?: number,
+): Promise<Window | null> {
   const ws = await liveWindows();
-  return ws.find((w) => w.asset === asset && w.secsLeft >= minSecsLeft) ?? null;
+  const usable = ws.filter((w) => w.asset === asset && w.secsLeft >= minSecsLeft);
+  if (intervalSec !== undefined) {
+    // exact timeframe or nothing — quietly filling a 1-day bet on the 5-minute
+    // book would be the worst possible substitution
+    return usable.find((w) => w.intervalSec === intervalSec) ?? null;
+  }
+  return usable[0] ?? null;
 }
 
 /** The chain is the only authority on tradability — the indexer lags by seconds. */

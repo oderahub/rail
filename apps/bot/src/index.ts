@@ -2,7 +2,7 @@ import { Bot, InlineKeyboard, type Context } from "grammy";
 import { isAddress, formatUnits } from "viem";
 import { ORDER_KIND, ORDER_TYPE } from "@somnia-chain/markets-sdk";
 import {
-  cfg, fmt, scale, exchange, liveWindows, pickWindow, isTradable, book,
+  cfg, fmt, scale, exchange, liveWindows, pickWindow, intervalsFor, isTradable, book,
   crossingPrice, quantityForSpend, notional, orderExpiryFor, SubLotError, NoLiquidityError,
   deployVault, faucetInto, existingVault, vaultState, placeOrder, withdrawAll,
   claimableFor, sweep, outcomeBalance, pub, operator, type Policy,
@@ -29,32 +29,61 @@ const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
 
 // ── window card ──────────────────────────────────────────────────────────────
 
-async function windowCard(asset: string, stake: bigint) {
-  const w = await pickWindow(asset);
-  if (!w) return { text: `No ${asset} window is open right now. Try again in a minute.`, kb: undefined };
+/** 300 -> "5m", 3600 -> "1h", 86400 -> "1d" */
+const tfLabel = (sec: number) =>
+  sec < 3600 ? `${sec / 60}m` : sec < 86400 ? `${sec / 3600}h` : `${sec / 86400}d`;
+
+const countdown = (secs: number) => {
+  if (secs >= 3600) {
+    const h = Math.floor(secs / 3600), m = Math.floor((secs % 3600) / 60);
+    return `${h}h ${String(m).padStart(2, "0")}m`;
+  }
+  const m = Math.floor(secs / 60), sx = secs % 60;
+  return `${m}m ${String(sx).padStart(2, "0")}s`;
+};
+
+const DEFAULT_TF = 300;
+
+async function windowCard(asset: string, stake: bigint, tf = DEFAULT_TF) {
+  const w = await pickWindow(asset, 75, tf);
+  const offered = await intervalsFor(asset);
+
+  // the timeframe row is built from what the venue is actually running, so a
+  // button never offers a window that cannot be traded
+  const tfRow = (kb: InlineKeyboard, current: number) => {
+    for (const s of offered) kb.text(s === current ? `▸${tfLabel(s)}` : tfLabel(s), `tf:${asset}:${stake}:${s}`);
+    return kb;
+  };
+
+  if (!w) {
+    const kb = tfRow(new InlineKeyboard(), tf).row().text("↻", `card:${asset}:${stake}:${DEFAULT_TF}`);
+    return {
+      text: `No ${asset} *${tfLabel(tf)}* window is open right now.` +
+            (offered.length ? `\n\nOpen timeframes: ${offered.map(tfLabel).join(", ")}` : ""),
+      kb,
+    };
+  }
 
   const b = await book(w.pool);
   const up = b.yesAsk?.price;
-  const mins = Math.floor(w.secsLeft / 60);
-  const secs = w.secsLeft % 60;
   const pct = up !== undefined ? `${(Number(up) / Number(scale) * 100).toFixed(1)}%` : "—";
 
   const text =
-    `*${asset} · ${w.intervalSec / 60}-minute window*\n\n` +
-    `Closes in *${mins}m ${String(secs).padStart(2, "0")}s*\n` +
+    `*${asset} · ${tfLabel(w.intervalSec)} window*\n\n` +
+    `Closes in *${countdown(w.secsLeft)}*\n` +
     `Market says *${pct}* chance it closes above where it opened\n\n` +
     `Stake: *${fmt(stake, 2)} tUSDC*`;
 
   const kb = new InlineKeyboard()
-    .text("📈 UP", `bet:${asset}:up:${stake}`)
-    .text("📉 DOWN", `bet:${asset}:down:${stake}`)
-    .row()
-    .text(`${fmt(STAKES[0], 2)}`, `stake:${asset}:${STAKES[0]}`)
-    .text(`${fmt(STAKES[1], 2)}`, `stake:${asset}:${STAKES[1]}`)
-    .text(`${fmt(STAKES[2], 2)}`, `stake:${asset}:${STAKES[2]}`)
-    .row()
-    .text("↻", `card:${asset}:${stake}`)
-    .text(asset === "BTC" ? "→ ETH" : "→ BTC", `card:${asset === "BTC" ? "ETH" : "BTC"}:${stake}`);
+    .text("📈 UP", `bet:${asset}:up:${stake}:${w.intervalSec}`)
+    .text("📉 DOWN", `bet:${asset}:down:${stake}:${w.intervalSec}`)
+    .row();
+  for (const st of STAKES) kb.text(st === stake ? `▸${fmt(st, 2)}` : fmt(st, 2), `stake:${asset}:${st}:${w.intervalSec}`);
+  kb.row();
+  tfRow(kb, w.intervalSec);
+  kb.row()
+    .text("↻", `card:${asset}:${stake}:${w.intervalSec}`)
+    .text(asset === "BTC" ? "→ ETH" : "→ BTC", `card:${asset === "BTC" ? "ETH" : "BTC"}:${stake}:${w.intervalSec}`);
 
   return { text, kb };
 }
@@ -232,16 +261,17 @@ bot.command("withdraw", async (c) => {
 
 // ── taps ─────────────────────────────────────────────────────────────────────
 
-bot.callbackQuery(/^(card|stake):(BTC|ETH):(\d+)$/, async (c) => {
-  const [, , asset, stake] = c.match!;
-  const { text, kb } = await windowCard(asset, BigInt(stake));
+bot.callbackQuery(/^(card|stake|tf):(BTC|ETH):(\d+):(\d+)$/, async (c) => {
+  const [, , asset, stake, tf] = c.match!;
+  const { text, kb } = await windowCard(asset, BigInt(stake), Number(tf));
   await c.answerCallbackQuery();
   await c.editMessageText(text, { parse_mode: "Markdown", reply_markup: kb }).catch(() => {});
 });
 
-bot.callbackQuery(/^bet:(BTC|ETH):(up|down):(\d+)$/, async (c) => {
-  const [, asset, dir, stakeStr] = c.match!;
+bot.callbackQuery(/^bet:(BTC|ETH):(up|down):(\d+):(\d+)$/, async (c) => {
+  const [, asset, dir, stakeStr, tfStr] = c.match!;
   const stake = BigInt(stakeStr);
+  const tf = Number(tfStr);
   const u = getUser(String(c.from.id));
   if (!u) { await c.answerCallbackQuery({ text: "Link a wallet first: /link", show_alert: true }); return; }
 
@@ -250,8 +280,8 @@ bot.callbackQuery(/^bet:(BTC|ETH):(up|down):(\d+)$/, async (c) => {
   try {
     // need room for the vault's expiry-headroom rule AND a margin below the
     // market's own expiry — an order must not outlive the market it trades
-    const w = await pickWindow(asset, 75);
-    if (!w) return void c.reply("That window is too close to closing. Tap ↻ for the next one.");
+    const w = await pickWindow(asset, 75, tf);
+    if (!w) return void c.reply(`That ${tfLabel(tf)} window is too close to closing. Tap ↻ for the next one.`);
     if (!(await isTradable(w.id))) return void c.reply("That market has locked. Tap ↻ for the next one.");
 
     const b = await book(w.pool);
@@ -264,7 +294,7 @@ bot.callbackQuery(/^bet:(BTC|ETH):(up|down):(\d+)$/, async (c) => {
     // layer pushes the fill the moment it lands — so replying afterwards puts
     // the confirmation BEHIND the fill. Say it now; let the fill complete it.
     await c.reply(
-      `Placing *${dir === "up" ? "UP" : "DOWN"}* on ${asset} · ${fmt(stake, 2)} tUSDC…`,
+      `Placing *${dir === "up" ? "UP" : "DOWN"}* on ${asset} ${tfLabel(w.intervalSec)} · ${fmt(stake, 2)} tUSDC…`,
       { parse_mode: "Markdown" }
     );
 
@@ -303,7 +333,7 @@ async function startLive() {
   // pool -> "BTC 5-minute", refreshed as windows roll
   let poolNames = new Map<string, string>();
   const refreshNames = async () => {
-    poolNames = new Map((await liveWindows()).map((w) => [w.pool.toLowerCase(), `${w.asset} ${w.intervalSec / 60}-minute`]));
+    poolNames = new Map((await liveWindows()).map((w) => [w.pool.toLowerCase(), `${w.asset} ${tfLabel(w.intervalSec)}`]));
   };
   await refreshNames();
   setInterval(refreshNames, 60_000).unref?.();

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 
 const BOT = process.env.NEXT_PUBLIC_BOT_USERNAME ?? "rail_somnia_bot";
 const EXPLORER = "https://shannon-explorer.somnia.network";
@@ -10,6 +11,21 @@ export default function Page() {
   const [address, setAddress] = useState("");
   const [maxPerOrder, setMax] = useState("5");
   const [dailyCap, setDaily] = useState("50");
+  const [made, setMade] = useState<{ pk: string; addr: string } | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  /**
+   * Generated in the browser and never transmitted. The bot is told the
+   * address only — which is the whole point of Rail: nobody but you ever
+   * holds the key that can withdraw.
+   */
+  function makeWallet() {
+    const pk = generatePrivateKey();
+    const addr = privateKeyToAccount(pk).address;
+    setMade({ pk, addr });
+    setAddress(addr);
+    setCopied(false);
+  }
 
   const ok = isAddress(address);
   // the bot deploys the vault and pays for it; this page only carries the
@@ -43,6 +59,35 @@ export default function Page() {
           spellCheck={false}
         />
         {address && !ok && <p className="err small" style={{ marginTop: 6 }}>That doesn't look like an address.</p>}
+
+        {!made && (
+          <button className="ghost" style={{ marginTop: 10 }} onClick={makeWallet}>
+            I don't have one — make me a testnet wallet
+          </button>
+        )}
+
+        {made && (
+          <div style={{ marginTop: 12, padding: 12, border: "1px solid var(--rule)", borderRadius: 8, background: "var(--surface-2)" }}>
+            <p className="small" style={{ margin: "0 0 8px" }}>
+              <strong>Save this private key.</strong> It is the only thing that can withdraw from
+              your vault. It was generated in your browser and never sent to us — if you lose it,
+              nobody can recover it.
+            </p>
+            <p className="mono small" style={{ wordBreak: "break-all", margin: "0 0 10px", color: "var(--ink-2)" }}>
+              {made.pk}
+            </p>
+            <button
+              className="ghost"
+              onClick={() => { navigator.clipboard?.writeText(made.pk); setCopied(true); }}
+            >
+              {copied ? "Copied ✓" : "Copy private key"}
+            </button>
+            <p className="small muted" style={{ margin: "10px 0 0" }}>
+              Shannon testnet only. Import it into MetaMask to withdraw, or just watch the vault
+              on the explorer.
+            </p>
+          </div>
+        )}
 
         <label htmlFor="mx">Most it can stake on one trade (tUSDC)</label>
         <input id="mx" inputMode="decimal" value={maxPerOrder} onChange={(e) => setMax(e.target.value)} />
