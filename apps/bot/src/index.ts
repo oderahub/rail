@@ -112,7 +112,7 @@ async function windowCard(asset: string, stake: bigint, tf = DEFAULT_TF, explici
 // ── commands ─────────────────────────────────────────────────────────────────
 
 const toRaw = (v: string, dflt: bigint): bigint => {
-  const n = Number(v);
+  const n = Number(v.replace("_", "."));
   return Number.isFinite(n) && n > 0 ? BigInt(Math.round(n * 1e6)) : dflt;
 };
 
@@ -148,7 +148,8 @@ async function linkVault(c: Context, owner: `0x${string}`, policy: Policy) {
 bot.command("start", async (c) => {
   // the signing page sends 0xADDRESS-maxPerOrder-dailyCap
   const payload = (c.match ?? "").trim();
-  const m = payload.match(/^(0x[a-fA-F0-9]{40})-([0-9.]+)-([0-9.]+)$/);
+  // the page sends a decimal as 2_5, because Telegram forbids "." here
+  const m = payload.match(/^(0x[a-fA-F0-9]{40})-([0-9._]+)-([0-9._]+)$/);
   if (m && !getUser(String(c.from!.id))) {
     await c.reply("Setting up your vault\u2026");
     try {

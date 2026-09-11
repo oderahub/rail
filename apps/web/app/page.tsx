@@ -30,7 +30,12 @@ export default function Page() {
   const ok = isAddress(address);
   // the bot deploys the vault and pays for it; this page only carries the
   // address and limits across in the deep-link payload
-  const deepLink = `https://t.me/${BOT}?start=${address.trim()}-${maxPerOrder}-${dailyCap}`;
+  // Telegram's start parameter permits only A-Z a-z 0-9 _ and - , so a decimal
+  // limit travels as 2_5 and the bot reads the underscore back as a point.
+  // Left as "2.5" the parameter can be dropped outright and the limits are
+  // silently lost, which is worse than rejecting it.
+  const enc = (v: string) => v.trim().replace(/[^0-9.]/g, "").replace(".", "_") || "0";
+  const deepLink = `https://t.me/${BOT}?start=${address.trim()}-${enc(maxPerOrder)}-${enc(dailyCap)}`;
 
   return (
     <main className="wrap">
