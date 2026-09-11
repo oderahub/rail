@@ -10,6 +10,8 @@ Rail is the missing boundary. A contract owns the orders and the collateral; an 
 
 **The operator is replaceable.** Today it is a Telegram bot you tap. It could equally be a fair-value model, an LLM council, or a strategy you wrote yourself — Rail does not decide what the operator should do, only what it is permitted to do.
 
+Precisely: a vault authorises **exactly one** operator, and `setOperator` is `onlyOwner`. Substitution is deliberate and owner-controlled, one at a time — there is never ambiguity about which system was permitted to act, and no operator can grant authority to another. The factory in this repository mints vaults pointed at Rail's own bot; pointing one at your agent instead is a single call the owner alone can make.
+
 Several projects in this hackathon describe a bounded policy. What follows is Rail's, refusing a trade on-chain, in a transaction you can open.
 
 Built for the Somnia × dreamDEX Event Contracts Hackathon, on Shannon testnet.

@@ -36,11 +36,18 @@ export default function Page() {
     <main className="wrap">
       <p className="eyebrow">Somnia × dreamDEX</p>
       <h1>Rail</h1>
-      <p>Set the rules your trades must obey. On-chain. Then tap.</p>
+      <p>The permission layer for delegated Event Contract execution.</p>
       <p className="muted">
-        Rail puts your money in a contract you own and a bot can only reach through the limits
-        you set. It cannot exceed them, cannot send your money anywhere but back to you, and
-        cannot withdraw.
+        Let a bot, an agent or an application act on your dreamDEX positions without giving it
+        ownership of your funds. Your collateral and your orders live in a vault you own. An
+        operator gets bounded authority to act through it — never custody, and never a
+        destination it can choose.
+      </p>
+      <p className="muted small">
+        dreamDEX has an operator-permission registry for <code>SpotPool</code>. <code>BinaryPool</code>{" "}
+        has none, so on Event Contracts there is no way to let anything trade for you without
+        handing over your private key. Rail is the missing boundary. The Telegram bot below is one
+        client — the vault accepts any operator, and only you can change which.
       </p>
 
       <div className="card">
