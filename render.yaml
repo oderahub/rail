@@ -17,6 +17,9 @@ services:
       # node:sqlite needs 22.13+; an older default silently has no such module
       - key: NODE_VERSION
         value: 22.13.0
+      # the signing page; /start shows a "create a wallet" button when set
+      - key: WEB_URL
+        sync: false
       - key: DATA_DIR
         value: /data
       - key: RPC_URL

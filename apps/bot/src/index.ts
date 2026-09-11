@@ -166,13 +166,19 @@ bot.command("start", async (c) => {
 
   const u = getUser(String(c.from!.id));
   if (!u) {
+    // Someone arriving from a link with no wallet cannot proceed on /link alone.
+    // The page generates a keypair in the browser; the bot never sees a key.
+    const kb = cfg.webUrl
+      ? new InlineKeyboard().url("Create a wallet & set limits", cfg.webUrl)
+      : undefined;
     return c.reply(
       "*Rail*\n\n" +
         "Set the rules your trades must obey. On-chain. Then tap.\n\n" +
         "Rail puts your funds in a vault *you* own. This bot can execute within the limits you set — it cannot exceed them, and it cannot redirect your funds anywhere but back to you.\n\n" +
-        "To begin, send me the wallet address that should own your vault:\n" +
-        "`/link 0xYourAddress`",
-      { parse_mode: "Markdown" }
+        (cfg.webUrl
+          ? "No wallet yet? Tap below — the page makes one in your browser and never sends the key to us.\n\nAlready have one:\n`/link 0xYourAddress`"
+          : "To begin, send me the wallet address that should own your vault:\n`/link 0xYourAddress`"),
+      { parse_mode: "Markdown", reply_markup: kb }
     );
   }
   const { text, kb } = await windowCard("BTC", STAKES[0]);

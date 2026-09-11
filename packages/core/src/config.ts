@@ -60,6 +60,9 @@ export const cfg = {
    * operator stay genuinely separate. Falls back to the operator only if unset.
    */
   ownerAddress: process.env.OWNER_ADDRESS as `0x${string}` | undefined,
+  /** The signing page. A user who opens the bot with no wallet has nowhere to
+   *  go without it, so /start links there when it is set. */
+  webUrl: process.env.WEB_URL,
   explorer: "https://shannon-explorer.somnia.network",
 } as const;
 
