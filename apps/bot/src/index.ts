@@ -48,8 +48,22 @@ const DEFAULT_TF = 300;
  *  narrated as a probability: it is what the book charges, not a forecast. */
 const cents = (raw: bigint) => `${(Number(raw) / Number(scale) * 100).toFixed(1)}¢`;
 
-async function windowCard(asset: string, stake: bigint, tf = DEFAULT_TF) {
-  const w = await pickWindow(asset, 75, tf);
+/**
+ * `explicit` is the difference between "show me a window" and "show me THAT
+ * window". /btc and /eth express a preference; tapping 1h is a choice.
+ *
+ * 5m and 15m both roll on the quarter hour, so they disappear together for a
+ * moment while the next pair is created and indexed. A preference falls back to
+ * the shortest window that is actually live; an explicit tap still says the
+ * chosen one is closed rather than silently trading a different book.
+ */
+async function windowCard(asset: string, stake: bigint, tf = DEFAULT_TF, explicit = false) {
+  let w = await pickWindow(asset, 75, tf);
+  let substituted = false;
+  if (!w && !explicit) {
+    w = await pickWindow(asset, 75);
+    substituted = w !== null;
+  }
   const offered = await intervalsFor(asset);
 
   // the timeframe row is built from what the venue is actually running, so a
@@ -72,7 +86,9 @@ async function windowCard(asset: string, stake: bigint, tf = DEFAULT_TF) {
   const up = b.yesAsk?.price;
 
   const text =
-    `*${asset} · ${tfLabel(w.intervalSec)} window*\n\n` +
+    `*${asset} · ${tfLabel(w.intervalSec)} window*` +
+    (substituted ? `\n_The ${tfLabel(tf)} window is rolling — showing the next one up._` : "") +
+    `\n\n` +
     `Closes in *${countdown(w.secsLeft)}*\n` +
     (up !== undefined
       ? `Market price — UP *${cents(up)}*, DOWN *${cents(scale - up)}*\n\n`
@@ -271,8 +287,8 @@ bot.command("withdraw", async (c) => {
 // ── taps ─────────────────────────────────────────────────────────────────────
 
 bot.callbackQuery(/^(card|stake|tf):(BTC|ETH):(\d+):(\d+)$/, async (c) => {
-  const [, , asset, stake, tf] = c.match!;
-  const { text, kb } = await windowCard(asset, BigInt(stake), Number(tf));
+  const [, verb, asset, stake, tf] = c.match!;
+  const { text, kb } = await windowCard(asset, BigInt(stake), Number(tf), verb === "tf");
   await c.answerCallbackQuery();
   await c.editMessageText(text, { parse_mode: "Markdown", reply_markup: kb }).catch(() => {});
 });
