@@ -4,7 +4,10 @@ services:
     runtime: node
     plan: starter          # a free web service sleeps after 15m, which kills
                            # pushed fills and the sweeper; a worker stays up
-    buildCommand: npm install -g pnpm && pnpm install --no-frozen-lockfile
+    # pnpm is pinned: 10.12+ turns skipped build scripts into a fatal
+    # ERR_PNPM_IGNORED_BUILDS, and 10.10.0 is the version this lockfile was
+    # generated with and verified against from a clean clone.
+    buildCommand: npm install -g pnpm@10.10.0 && pnpm install --no-frozen-lockfile
     startCommand: pnpm start
     disk:
       name: rail-data

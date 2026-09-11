@@ -1,3 +1,9 @@
 packages:
   - "packages/*"
   - "apps/*"
+
+# esbuild's platform binary comes from optionalDependencies, so its postinstall
+# is unnecessary; bufferutil and utf-8-validate are optional ws accelerators.
+# pnpm 10.12+ fails the install with ERR_PNPM_IGNORED_BUILDS unless the skip is
+# declared, and in a workspace it reads that from here rather than package.json.
+onlyBuiltDependencies: []
