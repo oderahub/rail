@@ -63,6 +63,10 @@ Rail also checks policy **twice**: once against the intended order, then authori
 
 Telegram is one client. The primitive underneath is a **user-owned execution boundary for dreamDEX Event Contracts**, and `packages/core` carries no Telegram types precisely so the client stays replaceable.
 
+That matters more than it might sound, because dreamDEX has already committed to the world Rail is built for. Its documentation states that *"autonomous agents and LLMs are first-class participants alongside humans"*, and ships an MCP server, `AGENTS.md`/`SKILL.md` and CCXT-compatible bindings to make that true.
+
+An agent that is a first-class participant still needs a key. Today the only way to let one trade for you is to give it unrestricted control of your funds — which is the same sentence that stopped Ada, with a model on the other end of it instead of a bot. Rail is the missing half of that design: the agent gets execution authority bounded on-chain, and never custody. Swapping Telegram for an MCP-driven agent is a `setOperator` call the owner alone can make; the limits, the refusals and the withdrawal destination do not change.
+
 ---
 
 ## Against the brief
