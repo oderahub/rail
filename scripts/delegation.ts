@@ -43,11 +43,19 @@ try {
   console.log(`reverted with: ${name ?? "(undecoded)"}`);
   if (name === "OnlyApprovedContracts" || name === "0x3fb0ba2e") {
     console.log(`
-✅ CONFIRMED. placeBinaryOrderFor is gated by OnlyApprovedContracts (0x3fb0ba2e),
-   and the only registry that can grant that approval — OperatorPermissionsRegistry
-   — covers SpotPool exclusively. The delegated path exists in the ABI but cannot
-   be reached on a BinaryPool by anyone. Making a contract the order owner is not
-   a preference; it is the only option.`);
+✅ CONFIRMED. The delegated path reverts.
+
+   What is established: placeBinaryOrderFor cannot be reached on a BinaryPool.
+   OperatorPermissionsRegistry is the only mechanism that grants delegated
+   placement rights, and it covers SpotPool exclusively — so no caller can
+   become authorised on a binary pool. Making a contract the order owner is
+   the viable architecture we found for this interface.
+
+   What is NOT established: the identity of 0x3fb0ba2e. The docs' errors page
+   lists OnlyApprovedContracts() against this selector, but that signature
+   computes to 0xc16ffe21 (see scripts/selector.ts). 0x3fb0ba2e matches nothing
+   in the SDK's 422-error catalogue or in openchain. The revert is reproducible;
+   the error's name is not something we can confirm.`);
   } else {
     console.log(`   (${e?.shortMessage ?? e?.message})`.slice(0, 300));
   }
