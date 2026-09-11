@@ -2,27 +2,64 @@
 
 ## The user story
 
-Ada has traded a little. She opens dreamDEX, finds Event Contracts, and understands them immediately: will BTC be above where it opened when this five-minute window closes. Two outcomes, fixed payout, no leverage, nothing to liquidate. It's the first thing in crypto that has read like a straight question.
+Ada has traded a little. Event Contracts make sense to her immediately: will BTC be above where it opened when this window closes. Two outcomes, a fixed payout, no leverage, nothing to liquidate.
 
-The problem is the windows. They close every five minutes, all day. Taking positions means sitting in front of a book, and she has a job.
+The problem isn't understanding the market. It's the windows — they close every few minutes, all day, and she has a job. So she looks for something that can act for her, and every option reduces to the same sentence: *paste your private key*. A bot holding her key can trade sizes she'd never choose, at hours she isn't watching, and drain the wallet if it's ever compromised. She closes the tab.
 
-So she looks for something that can act for her. Every option comes down to the same sentence: *paste your private key*. A bot with her key can do anything her key can do — trade sizes she'd never choose, at hours she isn't watching, and empty the wallet if it's ever compromised. She closes the tab.
+**Rail begins there** — not with a better strategy, but with the reason she can't use one.
 
-**This is where Rail begins.** Not with a better strategy, but with the reason she can't use one.
+She opens the Rail page. It asks for the wallet that should own her vault. She doesn't have one she's willing to use, so she taps **"I don't have one — make me a testnet wallet."** The keypair is generated entirely in her browser; the private key is shown once for her to save and is never transmitted. Rail learns a public address and nothing else.
 
-Ada opens Rail, enters the wallet that should own her vault, and sets two numbers: at most **5 tUSDC** on any single trade, at most **50 tUSDC** in a day. One tap deploys a contract that she owns and we pay for. She never signs anything.
+Then two numbers: at most **5 tUSDC** on any single trade, at most **50 tUSDC** in a day.
 
-From then on she's in Telegram. `/btc` shows the live window — how long is left, what the market currently implies, three stake sizes. She taps **UP**. A few seconds later the fill arrives on its own: *"UP on BTC 15-minute filled at 96.4% — 0.49 tUSDC."* When the window closes, the position is claimed for her without being asked, because settled markets vanish from live views and a user who never claims simply forfeits. *"UP came in — 1.33 tUSDC is in your vault."*
+One tap carries her into Telegram, and a vault deploys. She signs nothing and pays nothing — `deployFor` is callable by anyone, so Rail covers the gas, and the sponsor never becomes the owner. Her address is written in as the immutable owner; the bot's key is written in as *operator*.
 
-One afternoon she fat-fingers a stake. The reply isn't an apology from a bot:
+The distinction is the product:
 
-> **Your max per order rule stopped that.** That order is 25.000 tUSDC — your per-order limit is 5.000. *The chain refused it, not me.*
+> **Ada owns the vault. The bot only operates it.**
 
-That refusal is a real transaction. She can open it.
+She funds it with 100 tUSDC. The money sits in a contract she owns, not in the bot, and she can open it on the explorer.
 
-And when she wants her money, `/withdraw` sends it to her wallet — the only address it can reach, because the destination isn't a parameter the bot can set.
+Now Telegram is the whole interface.
 
-**The second act.** Months later Ada wants something smarter than her own taps. Rail doesn't ask her to migrate: the vault takes any operator address. She points a pricing model at the same vault, under the same two numbers. The thing deciding changed. The thing enforcing didn't.
+> **BTC · 5m window**
+> Closes in 3m 47s
+> Market-implied **52.6%** chance it closes above where it opened
+> Stake: **1.00 tUSDC**
+
+Underneath, the timeframes the venue is actually running — **5m · 15m · 1h · 4h · 1d** — built from live markets, so a button never offers a window that can't be traded. Ada won't be at a screen all afternoon, so she picks **1h** and taps **UP**.
+
+The vault places the order. The bot signs the transaction; it never holds the collateral. Seconds later the fill arrives on its own:
+
+> ✅ **UP** on BTC 1h filled at **52.6%** — 1.00 tUSDC
+
+Another day she fat-fingers a stake. What comes back isn't an apology from a bot:
+
+> ⛔ **Your max per order rule stopped that.**
+> That order is 25.000 tUSDC — your per-order limit is 5.000.
+> *The chain refused it, not me.*
+
+That is not a server-side check or a simulated warning. It is a mined, reverted transaction that anyone can open and read.
+
+When the window closes, Ada does nothing. Settled markets disappear from live views, so a user who never claims simply forfeits — which is why `redeem` on the vault is permissionless and a sweeper collects on her behalf:
+
+> 🎉 **UP** came in — **1.90 tUSDC** is in your vault.
+
+And `/withdraw` sends it home without a signature from her at all. That is safe for a precise reason: the operator *can* invoke the withdrawal path, but the destination is not a parameter it can set — it is hardcoded to the immutable owner. **The bot can return her money. It can never redirect it.**
+
+**Later.** Ada wants something smarter than her own taps. She migrates nothing: the vault accepts any operator address, and only she can change it. She points a pricing model at the same vault, under the same two numbers.
+
+> The software making the decision is not the software that owns the money.
+
+The decision-maker can change. The authorization boundary does not.
+
+### Why the architecture is shaped this way
+
+dreamDEX's operator-permission registry applies to `SpotPool`; the `BinaryPool` path exposes no equivalent delegated gate, so `placeBinaryOrderFor` cannot be reached by any caller. Making the vault itself the order owner is the viable delegated-execution architecture we found for the current interface. `scripts/delegation.ts` reproduces the wall.
+
+Rail also checks policy **twice**: once against the intended order, then authoritatively against the collateral the pool actually spent. If the venue takes more than policy permits, the transaction reverts and the order is unwound. A Foundry test drives exactly that case — a pool taking 50 tUSDC against an intended 1.
+
+Telegram is one client. The primitive underneath is a **user-owned execution boundary for dreamDEX Event Contracts**, and `packages/core` carries no Telegram types precisely so the client stays replaceable.
 
 ---
 
@@ -55,7 +92,7 @@ Every value that fails silently is read from the chain rather than assumed: coll
 
 ### A clear and intuitive user experience
 
-Two taps in an app she already has open. No wallet extension, no seed phrase, no signature per trade, no claiming, and no order book to read — the market's view is stated in English: *"Market says 35.3% chance it closes above where it opened."*
+Two taps in an app she already has open. No wallet extension, no seed phrase, no signature per trade, no claiming, and no order book to read — the market's view is stated in English: *"Market-implied 35.3% chance it closes above where it opened."*
 
 When something fails it says why, in words: *"No one was there to take the other side."* *"That window closes too soon to be worth entering."* Protocol reverts are decoded into sentences rather than shown as hex.
 

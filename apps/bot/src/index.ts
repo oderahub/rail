@@ -71,7 +71,7 @@ async function windowCard(asset: string, stake: bigint, tf = DEFAULT_TF) {
   const text =
     `*${asset} · ${tfLabel(w.intervalSec)} window*\n\n` +
     `Closes in *${countdown(w.secsLeft)}*\n` +
-    `Market says *${pct}* chance it closes above where it opened\n\n` +
+    `Market-implied *${pct}* chance it closes above where it opened\n\n` +
     `Stake: *${fmt(stake, 2)} tUSDC*`;
 
   const kb = new InlineKeyboard()

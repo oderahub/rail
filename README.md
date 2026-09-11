@@ -123,7 +123,7 @@ A tap produces this, unprompted, seconds apart:
 ```
 Placing UP on BTC · 0.50 tUSDC…
 
-✅ UP on BTC 15-minute filled at 96.4% — 0.49 tUSDC
+✅ UP on BTC 15m filled at 96.4% — 0.49 tUSDC
    Settles when the window closes. I'll tell you.
 
 🎉 UP came in — 1.33 tUSDC is in your vault.
