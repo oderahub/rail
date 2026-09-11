@@ -34,12 +34,15 @@ services:
         value: "1000"
       - key: BOOK_MIN_QUANTITY
         value: "1000"
-      # set these in the dashboard, never in this file
+      # public on-chain identifiers, not secrets — they are already in
+      # .env.example and on the signing page. Inlined so a deploy needs
+      # exactly two hand-entered values and cannot be mistyped.
+      - key: VENUE_ID
+        value: "0x679795a0195a1b76cdebb7c51d74e058aee92919b8c3389af86ef24535e8a28c"
+      - key: FACTORY_ADDRESS
+        value: "0x9dd560a1f2125d730766c9aff2b32e78057a0499"
+      # the only two real secrets — set in the dashboard, never in this file
       - key: PRIVATE_KEY
         sync: false
       - key: TELEGRAM_BOT_TOKEN
-        sync: false
-      - key: VENUE_ID
-        sync: false
-      - key: FACTORY_ADDRESS
         sync: false
