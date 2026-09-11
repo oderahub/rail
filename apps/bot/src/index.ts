@@ -312,6 +312,15 @@ bot.callbackQuery(/^bet:(BTC|ETH):(up|down):(\d+):(\d+)$/, async (c) => {
   try {
     // need room for the vault's expiry-headroom rule AND a margin below the
     // market's own expiry — an order must not outlive the market it trades
+    const st = await vaultState(u.vault);
+    if (st.collateral < stake) {
+      return void c.reply(
+        `Your vault holds *${fmt(st.collateral, 2)} tUSDC* — not enough for a ${fmt(stake, 2)} stake.\n\n` +
+          `Tap /fund for test tokens, or send tUSDC to \`${u.vault}\`.`,
+        { parse_mode: "Markdown" }
+      );
+    }
+
     const w = await pickWindow(asset, 75, tf);
     if (!w) return void c.reply(`That ${tfLabel(tf)} window is too close to closing. Tap ↻ for the next one.`);
     if (!(await isTradable(w.id))) return void c.reply("That market has locked. Tap ↻ for the next one.");
@@ -336,8 +345,22 @@ bot.callbackQuery(/^bet:(BTC|ETH):(up|down):(\d+):(\d+)$/, async (c) => {
       orderType: ORDER_TYPE.MARKET,
     });
 
-    if (r.ok) {
-      // the pushed fill is the confirmation — no second message
+    if (r.ok && (r.spent ?? 0n) > 0n) {
+      // the pushed fill carries price and size; this only proves it landed,
+      // so the user is never left watching "Placing…" if the push is slow
+      await c.reply(
+        `Order placed — *${fmt(r.spent!, 2)} tUSDC* left your vault.` +
+          (r.txHash ? `\n[transaction](${tx(r.txHash)})` : ""),
+        { parse_mode: "Markdown", link_preview_options: { is_disabled: true } }
+      );
+    } else if (r.ok) {
+      // mined, but nothing crossed: a market order against an empty side
+      // spends nothing and emits no fill, which used to look like a hang
+      await c.reply(
+        `That went through, but nothing filled — no one was on the other side at that price.\n\n` +
+          `_Your money did not move._ Tap ↻ for the next window, or try the other side.`,
+        { parse_mode: "Markdown" }
+      );
     } else if (r.refusedBy) {
       await c.reply(
         `⛔ *Policy limit exceeded*\n\n` +
