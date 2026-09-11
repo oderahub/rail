@@ -129,6 +129,12 @@ export default function Page() {
           </a>
         </div>
         <div className="row">
+          <span className="k">Telegram bot</span>
+          <a className="v" href={`https://t.me/${BOT}`} target="_blank" rel="noreferrer">
+            @{BOT}
+          </a>
+        </div>
+        <div className="row">
           <span className="k">Source</span>
           <a className="v" href="https://github.com/oderahub/rail" target="_blank" rel="noreferrer">
             github.com/oderahub/rail
