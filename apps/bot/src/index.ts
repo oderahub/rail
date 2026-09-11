@@ -150,7 +150,13 @@ bot.command("start", async (c) => {
   const payload = (c.match ?? "").trim();
   // the page sends a decimal as 2_5, because Telegram forbids "." here
   const m = payload.match(/^(0x[a-fA-F0-9]{40})-([0-9._]+)-([0-9._]+)$/);
-  if (m && !getUser(String(c.from!.id))) {
+  // Accept the payload whenever it names a DIFFERENT owner than the one on
+  // file. Requiring "no user yet" meant a returning user who set up a fresh
+  // wallet on the page was silently handed their old vault and old limits.
+  // Nothing is lost by switching: the previous vault keeps its own immutable
+  // owner and its balance, and only that owner can ever withdraw from it.
+  const already = getUser(String(c.from!.id));
+  if (m && (!already || already.owner.toLowerCase() !== m[1].toLowerCase())) {
     await c.reply("Setting up your vault\u2026");
     try {
       await linkVault(c, m[1] as `0x${string}`, {
