@@ -24,14 +24,16 @@ Now Telegram is the whole interface.
 
 > **BTC · 5m window**
 > Closes in 3m 47s
-> Market-implied **52.6%** chance it closes above where it opened
+> Market price — UP **52.6¢**, DOWN **47.4¢**
 > Stake: **1.00 tUSDC**
 
 Underneath, the timeframes the venue is actually running — **5m · 15m · 1h · 4h · 1d** — built from live markets, so a button never offers a window that can't be traded. Ada won't be at a screen all afternoon, so she picks **1h** and taps **UP**.
 
 The vault places the order. The bot signs the transaction; it never holds the collateral. Seconds later the fill arrives on its own:
 
-> ✅ **UP** on BTC 1h filled at **52.6%** — 1.00 tUSDC
+> ✅ **UP** filled on BTC 1h
+> Price: **52.6¢**
+> Spent: **1.00 tUSDC**
 
 Another day she fat-fingers a stake. What comes back isn't an apology from a bot:
 
@@ -92,7 +94,7 @@ Every value that fails silently is read from the chain rather than assumed: coll
 
 ### A clear and intuitive user experience
 
-Two taps in an app she already has open. No wallet extension, no seed phrase, no signature per trade, no claiming, and no order book to read — the market's view is stated in English: *"Market-implied 35.3% chance it closes above where it opened."*
+Two taps in an app she already has open. No wallet extension, no seed phrase, no signature per trade, no claiming, and no order book to read — the book is stated as a price, not as a forecast: *"Market price — UP 35.3¢, DOWN 64.7¢."*
 
 When something fails it says why, in words: *"No one was there to take the other side."* *"That window closes too soon to be worth entering."* Protocol reverts are decoded into sentences rather than shown as hex.
 

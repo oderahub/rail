@@ -44,6 +44,10 @@ const countdown = (secs: number) => {
 
 const DEFAULT_TF = 300;
 
+/** An order-book price, shown as a price. 747000 -> "74.7¢". Deliberately not
+ *  narrated as a probability: it is what the book charges, not a forecast. */
+const cents = (raw: bigint) => `${(Number(raw) / Number(scale) * 100).toFixed(1)}¢`;
+
 async function windowCard(asset: string, stake: bigint, tf = DEFAULT_TF) {
   const w = await pickWindow(asset, 75, tf);
   const offered = await intervalsFor(asset);
@@ -71,7 +75,7 @@ async function windowCard(asset: string, stake: bigint, tf = DEFAULT_TF) {
     `*${asset} · ${tfLabel(w.intervalSec)} window*\n\n` +
     `Closes in *${countdown(w.secsLeft)}*\n` +
     (up !== undefined
-      ? `Market-implied *${(Number(up) / Number(scale) * 100).toFixed(1)}%* chance it closes above where it opened\n\n`
+      ? `Market price — UP *${cents(up)}*, DOWN *${cents(scale - up)}*\n\n`
       : `_No one is quoting the UP side right now — a tap may not fill._\n\n`) +
     `Stake: *${fmt(stake, 2)} tUSDC*`;
 
@@ -118,6 +122,7 @@ async function linkVault(c: Context, owner: `0x${string}`, policy: Policy) {
 
   await c.reply(
     "Vault ready.\n\n[" + short(vault) + "](" + addr(vault) + ") \u2014 owned by *you*, not by us.\n\n" +
+      "Owner: `" + owner + "`\nOperator: this bot \u2014 execution only.\n\n" +
       "Limits: *" + fmt(policy.maxNotionalPerOrder, 2) + "* per order, *" + fmt(policy.dailyCap, 2) + "* a day.\n\n" +
       "Now fund it: send tUSDC to the vault, or tap /fund for test tokens.",
     { parse_mode: "Markdown", link_preview_options: { is_disabled: true } }
@@ -148,7 +153,7 @@ bot.command("start", async (c) => {
     return c.reply(
       "*Rail*\n\n" +
         "Set the rules your trades must obey. On-chain. Then tap.\n\n" +
-        "Rail puts your money in a contract *you* own. This bot can place orders inside the limits you set — and it cannot exceed them, cannot send your money anywhere but back to you, and cannot withdraw.\n\n" +
+        "Rail puts your funds in a vault *you* own. This bot can execute within the limits you set — it cannot exceed them, and it cannot redirect your funds anywhere but back to you.\n\n" +
         "To begin, send me the wallet address that should own your vault:\n" +
         "`/link 0xYourAddress`",
       { parse_mode: "Markdown" }
@@ -173,9 +178,12 @@ bot.command("link", async (c) => {
 bot.command("fund", async (c) => {
   const u = getUser(String(c.from!.id));
   if (!u) return c.reply("Link a wallet first: /link 0xYourAddress");
-  await c.reply("Minting test tUSDC into your vault…");
+  // `/fund 20` used to be accepted silently and then ignored, minting 100
+  const asked = Number((c.match ?? "").toString().replace(/[^0-9.]/g, ""));
+  const amount = Number.isFinite(asked) && asked > 0 ? BigInt(Math.round(Math.min(asked, 1000) * 1e6)) : 100_000_000n;
+  await c.reply(`Minting *${fmt(amount, 2)} tUSDC* into your vault…`, { parse_mode: "Markdown" });
   try {
-    const h = await faucetInto(u.vault);
+    const h = await faucetInto(u.vault, amount);
     const st = await vaultState(u.vault);
     await c.reply(`Funded. Vault holds *${fmt(st.collateral, 2)} tUSDC*.\n[transaction](${tx(h)})`, {
       parse_mode: "Markdown", link_preview_options: { is_disabled: true },
@@ -344,8 +352,10 @@ async function startLive() {
       const fills = client.getLiveUserFills(null, u.vault, { limit: 20 }) ?? [];
       for (const f of fills) {
         if (!isNewFill(String(f.id), u.tgId)) continue;
-        const px = f.fillPrice ? `${(Number(f.fillPrice) / Number(scale) * 100).toFixed(1)}%` : "";
-        const size = f.quoteQuantity
+        const px = f.fillPrice ? cents(BigInt(f.fillPrice)) : "";
+        // quoteQuantity is collateral SPENT (quantity x fillPrice), not a payout.
+        // Labelling it loosely invites the reader to mistake it for winnings.
+        const spent = f.quoteQuantity
           ? `${Number(formatUnits(BigInt(f.quoteQuantity), cfg.decimals)).toFixed(2)} tUSDC`
           : "";
         // takerSide is the side the user bought (BUY_YES / BUY_NO). `kind` is the
@@ -356,7 +366,9 @@ async function startLive() {
         await bot.api
           .sendMessage(
             u.tgId,
-            `✅ *${side}*${where ? ` on ${where}` : ""} filled${px ? ` at *${px}*` : ""}${size ? ` — ${size}` : ""}` +
+            `✅ *${side}* filled${where ? ` on ${where}` : ""}` +
+              (px ? `\nPrice: *${px}*` : "") +
+              (spent ? `\nSpent: *${spent}*` : "") +
               (f.txHash ? `\n[transaction](${tx(f.txHash)})` : "") +
               `\n\n_Settles when the window closes. I'll tell you._`,
             { parse_mode: "Markdown", link_preview_options: { is_disabled: true } }
