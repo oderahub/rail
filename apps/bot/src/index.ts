@@ -66,12 +66,13 @@ async function windowCard(asset: string, stake: bigint, tf = DEFAULT_TF) {
 
   const b = await book(w.pool);
   const up = b.yesAsk?.price;
-  const pct = up !== undefined ? `${(Number(up) / Number(scale) * 100).toFixed(1)}%` : "—";
 
   const text =
     `*${asset} · ${tfLabel(w.intervalSec)} window*\n\n` +
     `Closes in *${countdown(w.secsLeft)}*\n` +
-    `Market-implied *${pct}* chance it closes above where it opened\n\n` +
+    (up !== undefined
+      ? `Market-implied *${(Number(up) / Number(scale) * 100).toFixed(1)}%* chance it closes above where it opened\n\n`
+      : `_No one is quoting the UP side right now — a tap may not fill._\n\n`) +
     `Stake: *${fmt(stake, 2)} tUSDC*`;
 
   const kb = new InlineKeyboard()
@@ -347,7 +348,10 @@ async function startLive() {
         const size = f.quoteQuantity
           ? `${Number(formatUnits(BigInt(f.quoteQuantity), cfg.decimals)).toFixed(2)} tUSDC`
           : "";
-        const side = String(f.kind ?? "").includes("NO") ? "DOWN" : "UP";
+        // takerSide is the side the user bought (BUY_YES / BUY_NO). `kind` is the
+        // MATCH type — MINT_A_PAIR, DIRECT_YES — and reading it reported every
+        // paired DOWN fill as UP, because "MINT_A_PAIR" contains no "NO".
+        const side = String(f.takerSide ?? "").includes("NO") ? "DOWN" : "UP";
         const where = poolNames.get(String(f.pool).toLowerCase()) ?? "";
         await bot.api
           .sendMessage(
