@@ -339,8 +339,11 @@ bot.callbackQuery(/^bet:(BTC|ETH):(up|down):(\d+):(\d+)$/, async (c) => {
       // the pushed fill is the confirmation — no second message
     } else if (r.refusedBy) {
       await c.reply(
-        `⛔ *Your ${r.refusedBy} rule stopped that.*\n\n${r.reason}\n\n` +
-          `_The chain refused it, not me. /limits to see them._`,
+        `⛔ *Policy limit exceeded*\n\n` +
+          (r.detail
+            ? `Requested: *${fmt(r.detail.asked, 3)} tUSDC*\n${r.detail.label}: *${fmt(r.detail.limit, 3)} tUSDC*\n\n`
+            : `${r.reason}\n\n`) +
+          `_The chain refused it, not me._`,
         { parse_mode: "Markdown" }
       );
     } else {

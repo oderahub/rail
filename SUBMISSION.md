@@ -37,8 +37,9 @@ The vault places the order. The bot signs the transaction; it never holds the co
 
 Another day she fat-fingers a stake. What comes back isn't an apology from a bot:
 
-> ⛔ **Your max per order rule stopped that.**
-> That order is 25.000 tUSDC — your per-order limit is 5.000.
+> ⛔ **Policy limit exceeded**
+> Requested: **25.000 tUSDC**
+> Maximum per order: **5.000 tUSDC**
 > *The chain refused it, not me.*
 
 That is not a server-side check or a simulated warning. It is a mined, reverted transaction that anyone can open and read.

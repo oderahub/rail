@@ -181,6 +181,9 @@ export interface PlaceResult {
   /** Set when a POLICY rule stopped it — the thing worth showing on screen. */
   refusedBy?: string;
   reason?: string;
+  /** The two numbers behind a refusal, so a client can lay them out itself
+   *  instead of parsing them back out of a sentence. */
+  detail?: { label: string; asked: bigint; limit: bigint };
 }
 
 /**
@@ -257,13 +260,21 @@ function explainProtocol(name: string, a: any[]): string | undefined {
   return undefined;
 }
 
-export function explainRevert(err: any): { refusedBy?: string; reason: string } {
+export function explainRevert(err: any): { refusedBy?: string; reason: string; detail?: { label: string; asked: bigint; limit: bigint } } {
   const { name, args: a, selector: sel } = findRevert(err);
   switch (name) {
     case "OrderTooLarge":
-      return { refusedBy: "max per order", reason: `That order is ${fmt(a[0])} tUSDC — your per-order limit is ${fmt(a[1])}.` };
+      return {
+        refusedBy: "max per order",
+        reason: `That order is ${fmt(a[0])} tUSDC — your per-order limit is ${fmt(a[1])}.`,
+        detail: { label: "Maximum per order", asked: a[0], limit: a[1] },
+      };
     case "DailyCapExceeded":
-      return { refusedBy: "daily cap", reason: `You have spent ${fmt(a[0])} today; another ${fmt(a[1])} would pass your ${fmt(a[2])} daily cap.` };
+      return {
+        refusedBy: "daily cap",
+        reason: `You have spent ${fmt(a[0])} today; another ${fmt(a[1])} would pass your ${fmt(a[2])} daily cap.`,
+        detail: { label: "Maximum per day", asked: a[0] + a[1], limit: a[2] },
+      };
     case "Cooldown":
       return { refusedBy: "cooldown", reason: `Too soon — ${a[0]}s left on your cooldown.` };
     case "ExpiryTooSoon":
