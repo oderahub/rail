@@ -18,3 +18,7 @@ data/
 *.db
 *.log
 .DS_Store
+
+# working notes — kept locally, not part of the submission
+DEMO.md
+HOSTING.md
